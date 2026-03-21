@@ -13,6 +13,7 @@ Handles 20B events/week with sub-second processing requirements.
 
 from datetime import datetime, timedelta
 
+import boto3
 import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -35,7 +36,8 @@ default_args = {
     "on_failure_callback": on_failure_callback,
 }
 
-FLINK_REST_URL = "{{ var.value.flink_rest_url }}"
+MANAGED_FLINK_APP_NAME = "{{ var.value.managed_flink_realtime_app_name }}"
+AWS_REGION = "{{ var.value.aws_region }}"
 DRUID_COORDINATOR_URL = "{{ var.value.druid_coordinator_url }}"
 DRUID_OVERLORD_URL = "{{ var.value.druid_overlord_url }}"
 

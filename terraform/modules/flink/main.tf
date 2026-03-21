@@ -1,75 +1,118 @@
 ###############################################################################
-# Flink Module - Stream Processing on Amazon Managed Flink / ECS
-# Used by Pipeline 2 (CDC) and Pipeline 4 (Real-time Events)
-# Complex event processing with feedback loops
+# Flink Module - Amazon Managed Service for Apache Flink
+# Replaces self-hosted Flink on ECS with fully managed service
+# Used by Pipeline 1 (CEP), Pipeline 2 (CDC), and Pipeline 4 (Real-time Events)
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
-variable "environment" {
-  type = string
-}
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
 
-variable "vpc_id" {
-  type = string
-}
+  flink_applications = {
+    "pipeline1-cep" = {
+      description          = "Batch CEP processing"
+      runtime_environment  = var.runtime_environment
+      parallelism          = 8
+      parallelism_per_kpu  = 2
+      auto_scaling_enabled = var.auto_scaling_enabled
+      code_s3_bucket       = var.code_s3_bucket
+      code_s3_key          = var.application_configs["pipeline1-cep"].code_s3_path
+      environment_properties = {
+        "kafka" = {
+          "bootstrap.servers" = var.kafka_bootstrap_servers
+          "schema.registry.url" = var.schema_registry_url
+        }
+        "s3" = {
+          "checkpoint.bucket" = var.s3_checkpoints_bucket
+          "checkpoint.prefix" = "pipeline1-cep/flink-checkpoints"
+          "output.bucket"     = var.s3_output_bucket
+          "output.prefix"     = "pipeline1-batch-etl/iceberg"
+        }
+        "iceberg" = {
+          "catalog.type"  = "hive"
+          "catalog.name"  = "zomato_iceberg"
+          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline1-batch-etl/iceberg"
+        }
+      }
+    }
 
-variable "subnet_ids" {
-  type = list(string)
-}
+    "pipeline2-cdc" = {
+      description          = "CDC stream processing"
+      runtime_environment  = var.runtime_environment
+      parallelism          = 16
+      parallelism_per_kpu  = 2
+      auto_scaling_enabled = var.auto_scaling_enabled
+      code_s3_bucket       = var.code_s3_bucket
+      code_s3_key          = var.application_configs["pipeline2-cdc"].code_s3_path
+      environment_properties = {
+        "kafka" = {
+          "bootstrap.servers" = var.kafka_bootstrap_servers
+          "schema.registry.url" = var.schema_registry_url
+          "consumer.group.id"  = "flink-cdc-processor"
+        }
+        "s3" = {
+          "checkpoint.bucket" = var.s3_checkpoints_bucket
+          "checkpoint.prefix" = "pipeline2-cdc/flink-checkpoints"
+          "output.bucket"     = var.s3_output_bucket
+          "output.prefix"     = "pipeline2-cdc/iceberg"
+        }
+        "iceberg" = {
+          "catalog.type"  = "hive"
+          "catalog.name"  = "zomato_iceberg"
+          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline2-cdc/iceberg"
+          "database"      = "zomato_cdc"
+        }
+      }
+    }
 
-variable "kafka_security_group_id" {
-  type = string
-}
-
-variable "s3_checkpoints_bucket" {
-  type = string
-}
-
-variable "s3_output_bucket" {
-  type = string
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
+    "pipeline4-realtime" = {
+      description          = "Realtime event processing"
+      runtime_environment  = var.runtime_environment
+      parallelism          = 32
+      parallelism_per_kpu  = 4
+      auto_scaling_enabled = var.auto_scaling_enabled
+      code_s3_bucket       = var.code_s3_bucket
+      code_s3_key          = var.application_configs["pipeline4-realtime"].code_s3_path
+      environment_properties = {
+        "kafka" = {
+          "bootstrap.servers"   = var.kafka_bootstrap_servers
+          "schema.registry.url" = var.schema_registry_url
+          "consumer.group.id"   = "flink-realtime-events"
+        }
+        "s3" = {
+          "checkpoint.bucket" = var.s3_checkpoints_bucket
+          "checkpoint.prefix" = "pipeline4-realtime/flink-checkpoints"
+          "output.bucket"     = var.s3_output_bucket
+          "output.prefix"     = "pipeline4-realtime/orc"
+        }
+        "iceberg" = {
+          "catalog.type"  = "hive"
+          "catalog.name"  = "zomato_iceberg"
+          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline4-realtime/iceberg"
+        }
+      }
+    }
+  }
 }
 
 # ---------- Security Group ----------
 resource "aws_security_group" "flink" {
-  name_prefix = "${var.project_name}-${var.environment}-flink-"
+  name_prefix = "${local.name_prefix}-managed-flink-"
   vpc_id      = var.vpc_id
 
-  # Flink TaskManager RPC
-  ingress {
-    from_port   = 6121
-    to_port     = 6125
-    protocol    = "tcp"
-    self        = true
-    description = "Flink internal communication"
-  }
-
-  # Flink Web UI
-  ingress {
-    from_port   = 8081
-    to_port     = 8081
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-    description = "Flink Web UI"
-  }
-
+  # Managed Flink needs outbound access to MSK, S3, Glue, CloudWatch
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic for Managed Flink"
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-flink-sg"
+    Name = "${local.name_prefix}-managed-flink-sg"
   })
 
   lifecycle {
@@ -77,20 +120,20 @@ resource "aws_security_group" "flink" {
   }
 }
 
-# Allow Flink to connect to Kafka
+# Allow Managed Flink to connect to MSK/Kafka
 resource "aws_security_group_rule" "kafka_from_flink" {
   type                     = "ingress"
   from_port                = 9092
-  to_port                  = 9093
+  to_port                  = 9098
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.flink.id
   security_group_id        = var.kafka_security_group_id
-  description              = "Kafka access from Flink"
+  description              = "MSK access from Amazon Managed Flink"
 }
 
 # ---------- IAM Role ----------
 resource "aws_iam_role" "flink" {
-  name = "${var.project_name}-${var.environment}-flink-role"
+  name = "${local.name_prefix}-managed-flink-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -98,7 +141,7 @@ resource "aws_iam_role" "flink" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = ["ecs-tasks.amazonaws.com", "kinesisanalytics.amazonaws.com"]
+        Service = "kinesisanalytics.amazonaws.com"
       }
     }]
   })
@@ -106,35 +149,61 @@ resource "aws_iam_role" "flink" {
   tags = var.tags
 }
 
+# S3 access for checkpoints, savepoints, data lake, and application code
 resource "aws_iam_role_policy" "flink_s3" {
-  name = "flink-s3-access"
+  name = "managed-flink-s3-access"
   role = aws_iam_role.flink.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "S3DataAccess"
         Effect = "Allow"
         Action = [
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
         ]
         Resource = [
           "arn:aws:s3:::${var.s3_checkpoints_bucket}",
           "arn:aws:s3:::${var.s3_checkpoints_bucket}/*",
           "arn:aws:s3:::${var.s3_output_bucket}",
-          "arn:aws:s3:::${var.s3_output_bucket}/*"
+          "arn:aws:s3:::${var.s3_output_bucket}/*",
+          "arn:aws:s3:::${var.code_s3_bucket}",
+          "arn:aws:s3:::${var.code_s3_bucket}/*"
         ]
-      },
+      }
+    ]
+  })
+}
+
+# MSK/Kafka cluster access
+resource "aws_iam_role_policy" "flink_msk" {
+  name = "managed-flink-msk-access"
+  role = aws_iam_role.flink.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       {
+        Sid    = "MSKClusterAccess"
         Effect = "Allow"
         Action = [
-          "cloudwatch:PutMetricData",
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
+          "kafka-cluster:Connect",
+          "kafka-cluster:DescribeCluster",
+          "kafka-cluster:DescribeClusterV2",
+          "kafka-cluster:AlterCluster",
+          "kafka-cluster:DescribeTopic",
+          "kafka-cluster:CreateTopic",
+          "kafka-cluster:AlterTopic",
+          "kafka-cluster:WriteData",
+          "kafka-cluster:ReadData",
+          "kafka-cluster:DescribeGroup",
+          "kafka-cluster:AlterGroup",
+          "kafka-cluster:DeleteGroup"
         ]
         Resource = "*"
       }
@@ -142,149 +211,188 @@ resource "aws_iam_role_policy" "flink_s3" {
   })
 }
 
-# ---------- ECS Cluster for Flink ----------
-resource "aws_ecs_cluster" "flink" {
-  name = "${var.project_name}-${var.environment}-flink"
+# Glue catalog access for Iceberg tables
+resource "aws_iam_role_policy" "flink_glue" {
+  name = "managed-flink-glue-access"
+  role = aws_iam_role.flink.id
 
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-flink-cluster"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "GlueCatalogAccess"
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:DeleteTable",
+          "glue:BatchGetPartition",
+          "glue:CreatePartition",
+          "glue:UpdatePartition",
+          "glue:DeletePartition",
+          "glue:BatchCreatePartition"
+        ]
+        Resource = [
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/*",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/*"
+        ]
+      }
+    ]
   })
 }
 
-# ---------- Flink JobManager Task Definition ----------
-resource "aws_ecs_task_definition" "flink_jobmanager" {
-  family                   = "${var.project_name}-${var.environment}-flink-jobmanager"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = 4096
-  memory                   = 16384
-  execution_role_arn       = aws_iam_role.flink.arn
-  task_role_arn            = aws_iam_role.flink.arn
+# CloudWatch logs and metrics
+resource "aws_iam_role_policy" "flink_cloudwatch" {
+  name = "managed-flink-cloudwatch-access"
+  role = aws_iam_role.flink.id
 
-  container_definitions = jsonencode([{
-    name  = "flink-jobmanager"
-    image = "flink:1.18-java17"
-    command = ["jobmanager"]
-
-    portMappings = [
-      { containerPort = 6123, protocol = "tcp" },
-      { containerPort = 8081, protocol = "tcp" }
-    ]
-
-    environment = [
-      { name = "FLINK_PROPERTIES", value = join("\n", [
-        "jobmanager.rpc.address: localhost",
-        "state.backend: rocksdb",
-        "state.checkpoints.dir: s3://${var.s3_checkpoints_bucket}/flink/checkpoints",
-        "state.savepoints.dir: s3://${var.s3_checkpoints_bucket}/flink/savepoints",
-        "execution.checkpointing.interval: 60000",
-        "execution.checkpointing.min-pause: 30000",
-        "taskmanager.memory.process.size: 14gb",
-        "parallelism.default: 32"
-      ])}
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = "/ecs/${var.project_name}-${var.environment}/flink-jobmanager"
-        "awslogs-region"        = data.aws_region.current.name
-        "awslogs-stream-prefix" = "flink"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CloudWatchLogsMetrics"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData",
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "*"
       }
-    }
-  }])
-
-  tags = var.tags
+    ]
+  })
 }
 
-# ---------- Flink TaskManager Task Definition ----------
-resource "aws_ecs_task_definition" "flink_taskmanager" {
-  family                   = "${var.project_name}-${var.environment}-flink-taskmanager"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = 8192
-  memory                   = 30720
-  execution_role_arn       = aws_iam_role.flink.arn
-  task_role_arn            = aws_iam_role.flink.arn
+# VPC access for Managed Flink to reach MSK in VPC
+resource "aws_iam_role_policy" "flink_vpc" {
+  name = "managed-flink-vpc-access"
+  role = aws_iam_role.flink.id
 
-  container_definitions = jsonencode([{
-    name  = "flink-taskmanager"
-    image = "flink:1.18-java17"
-    command = ["taskmanager"]
-
-    environment = [
-      { name = "FLINK_PROPERTIES", value = join("\n", [
-        "jobmanager.rpc.address: flink-jobmanager.${var.environment}.internal",
-        "state.backend: rocksdb",
-        "state.checkpoints.dir: s3://${var.s3_checkpoints_bucket}/flink/checkpoints",
-        "taskmanager.numberOfTaskSlots: 8",
-        "taskmanager.memory.process.size: 28gb",
-        "taskmanager.memory.managed.fraction: 0.4"
-      ])}
-    ]
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = "/ecs/${var.project_name}-${var.environment}/flink-taskmanager"
-        "awslogs-region"        = data.aws_region.current.name
-        "awslogs-stream-prefix" = "flink"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "VPCAccess"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:CreateNetworkInterface",
+          "ec2:CreateNetworkInterfacePermission",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeDhcpOptions"
+        ]
+        Resource = "*"
       }
-    }
-  }])
-
-  tags = var.tags
-}
-
-# ---------- Flink TaskManager Service ----------
-resource "aws_ecs_service" "flink_taskmanager" {
-  name            = "flink-taskmanager"
-  cluster         = aws_ecs_cluster.flink.id
-  task_definition = aws_ecs_task_definition.flink_taskmanager.arn
-  desired_count   = 8
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets         = var.subnet_ids
-    security_groups = [aws_security_group.flink.id]
-  }
-
-  tags = var.tags
+    ]
+  })
 }
 
 # ---------- CloudWatch Log Groups ----------
-resource "aws_cloudwatch_log_group" "flink_jobmanager" {
-  name              = "/ecs/${var.project_name}-${var.environment}/flink-jobmanager"
+resource "aws_cloudwatch_log_group" "flink" {
+  for_each = local.flink_applications
+
+  name              = "/aws/managed-flink/${local.name_prefix}-${each.key}"
   retention_in_days = 30
   tags              = var.tags
 }
 
-resource "aws_cloudwatch_log_group" "flink_taskmanager" {
-  name              = "/ecs/${var.project_name}-${var.environment}/flink-taskmanager"
-  retention_in_days = 30
-  tags              = var.tags
+resource "aws_cloudwatch_log_stream" "flink" {
+  for_each = local.flink_applications
+
+  name           = "${each.key}-log-stream"
+  log_group_name = aws_cloudwatch_log_group.flink[each.key].name
 }
 
-data "aws_region" "current" {}
+# ---------- Amazon Managed Service for Apache Flink Applications ----------
+resource "aws_kinesisanalyticsv2_application" "flink" {
+  for_each = local.flink_applications
 
-# ---------- Outputs ----------
-output "cluster_id" {
-  value = aws_ecs_cluster.flink.id
+  name                   = "${local.name_prefix}-${each.key}"
+  description            = each.value.description
+  runtime_environment    = each.value.runtime_environment
+  service_execution_role = aws_iam_role.flink.arn
+
+  application_configuration {
+
+    flink_application_configuration {
+
+      checkpoint_configuration {
+        configuration_type = "CUSTOM"
+        checkpointing_enabled         = true
+        checkpoint_interval            = 60000
+        min_pause_between_checkpoints  = 30000
+      }
+
+      monitoring_configuration {
+        configuration_type = "CUSTOM"
+        metrics_level      = "TASK"
+        log_level          = "INFO"
+      }
+
+      parallelism_configuration {
+        configuration_type   = "CUSTOM"
+        parallelism          = each.value.parallelism
+        parallelism_per_kpu  = each.value.parallelism_per_kpu
+        auto_scaling_enabled = each.value.auto_scaling_enabled
+      }
+    }
+
+    application_code_configuration {
+      code_content_type = "ZIPFILE"
+
+      code_content {
+        s3_content_location {
+          bucket_arn = "arn:aws:s3:::${each.value.code_s3_bucket}"
+          file_key   = each.value.code_s3_key
+        }
+      }
+    }
+
+    environment_properties {
+      dynamic "property_group" {
+        for_each = each.value.environment_properties
+
+        content {
+          property_group_id = property_group.key
+
+          property_map = property_group.value
+        }
+      }
+    }
+
+    vpc_configuration {
+      subnet_ids         = var.subnet_ids
+      security_group_ids = [aws_security_group.flink.id]
+    }
+  }
+
+  cloudwatch_logging_options {
+    log_stream_arn = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.flink[each.key].name}:log-stream:${aws_cloudwatch_log_stream.flink[each.key].name}"
+  }
+
+  tags = merge(var.tags, {
+    Name     = "${local.name_prefix}-${each.key}"
+    Pipeline = each.key
+  })
 }
 
-output "security_group_id" {
-  value = aws_security_group.flink.id
-}
+# ---------- Application Snapshots for State Management ----------
+resource "aws_kinesisanalyticsv2_application_snapshot" "flink" {
+  for_each = local.flink_applications
 
-output "jobmanager_task_definition_arn" {
-  value = aws_ecs_task_definition.flink_jobmanager.arn
-}
-
-output "taskmanager_task_definition_arn" {
-  value = aws_ecs_task_definition.flink_taskmanager.arn
+  application_name = aws_kinesisanalyticsv2_application.flink[each.key].name
+  snapshot_name    = "${each.key}-baseline-snapshot"
 }

@@ -39,6 +39,10 @@ FLINK_SQL = {
             'topic' = 'orders;users;menu;promo;topics',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
             'properties.group.id' = 'flink-realtime-events',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'json',
             'json.timestamp-format.standard' = 'ISO-8601',
             'scan.startup.mode' = 'latest-offset'
@@ -87,6 +91,10 @@ FLINK_SQL = {
             'connector' = 'kafka',
             'topic' = 'druid-ingestion-events',
             'properties.bootstrap.servers' = '{kafka_bootstrap_2}',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'json',
             'sink.partitioner' = 'round-robin'
         );
@@ -175,6 +183,10 @@ FLINK_SQL = {
             'connector' = 'kafka',
             'topic' = 'order-spike-alerts',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'json'
         );
     """,
@@ -206,6 +218,10 @@ def generate_druid_ingestion_spec(
                 "consumerProperties": {
                     "bootstrap.servers": kafka_bootstrap,
                     "group.id": "druid-realtime-ingestion",
+                    "security.protocol": "SASL_SSL",
+                    "sasl.mechanism": "AWS_MSK_IAM",
+                    "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                    "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
                 },
                 "topic": "druid-ingestion-events",
                 "inputFormat": {
@@ -318,8 +334,8 @@ def generate_flink_job_config(
 if __name__ == "__main__":
     # Generate configs for deployment
     flink_config = generate_flink_job_config(
-        kafka_bootstrap=os.environ.get("KAFKA_BOOTSTRAP", "kafka-1:9092"),
-        kafka_bootstrap_2=os.environ.get("KAFKA_BOOTSTRAP_2", "kafka-2:9092"),
+        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
+        kafka_bootstrap_2=os.environ.get("MSK_BOOTSTRAP_2", "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
         s3_bucket=os.environ.get("S3_BUCKET", "zomato-data-platform-dev-raw-data-lake"),
         checkpoint_dir=os.environ.get(
             "CHECKPOINT_DIR",
@@ -332,7 +348,7 @@ if __name__ == "__main__":
         json.dump(flink_config, f, indent=2)
 
     druid_spec = generate_druid_ingestion_spec(
-        kafka_bootstrap=os.environ.get("KAFKA_BOOTSTRAP_2", "kafka-2:9092"),
+        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP_2", "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
     )
     with open("/tmp/pipeline4/druid_ingestion_spec.json", "w") as f:
         json.dump(druid_spec, f, indent=2)

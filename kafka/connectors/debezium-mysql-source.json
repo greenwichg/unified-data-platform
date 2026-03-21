@@ -22,7 +22,7 @@
     "topic.creation.default.cleanup.policy": "delete",
     "topic.creation.default.retention.ms": "604800000",
 
-    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP}",
+    "schema.history.internal.kafka.bootstrap.servers": "${MSK_BOOTSTRAP_TLS}",
     "schema.history.internal.kafka.topic": "zomato-schema-history",
     "schema.history.internal.kafka.topic.replication.factor": "3",
     "schema.history.internal.store.only.captured.tables.ddl": "true",

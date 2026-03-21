@@ -39,12 +39,12 @@ class ConsumerConfig:
     """Configuration for the Kafka consumer fleet."""
 
     source_bootstrap_servers: str = os.getenv(
-        "KAFKA_BOOTSTRAP",
-        "kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092",
+        "MSK_BOOTSTRAP",
+        "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
     )
     target_bootstrap_servers: str = os.getenv(
-        "KAFKA_BOOTSTRAP_2",
-        "kafka-rt1.zomato-data.internal:9093,kafka-rt2.zomato-data.internal:9093,kafka-rt3.zomato-data.internal:9093",
+        "MSK_BOOTSTRAP_2",
+        "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
     )
     source_topics: list[str] = field(
         default_factory=lambda: ["orders", "users", "menu", "promo"]
@@ -87,7 +87,13 @@ class ConsumerLagMonitor:
         self.config = config
         self.cloudwatch = boto3.client("cloudwatch", region_name="ap-south-1")
         self.admin_client = AdminClient(
-            {"bootstrap.servers": config.source_bootstrap_servers}
+            {
+                "bootstrap.servers": config.source_bootstrap_servers,
+                "security.protocol": "SASL_SSL",
+                "sasl.mechanism": "AWS_MSK_IAM",
+                "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
+            }
         )
         self._running = False
         self._thread: threading.Thread | None = None
@@ -123,6 +129,10 @@ class ConsumerLagMonitor:
                     "bootstrap.servers": self.config.source_bootstrap_servers,
                     "group.id": self.config.consumer_group,
                     "enable.auto.commit": False,
+                    "security.protocol": "SASL_SSL",
+                    "sasl.mechanism": "AWS_MSK_IAM",
+                    "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                    "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
                 }
             )
 
@@ -229,6 +239,10 @@ class DruidFeederConsumer:
                 "fetch.wait.max.ms": 500,
                 "max.partition.fetch.bytes": 10485760,
                 "statistics.interval.ms": 30000,
+                "security.protocol": "SASL_SSL",
+                "sasl.mechanism": "AWS_MSK_IAM",
+                "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
             }
         )
 
@@ -244,6 +258,10 @@ class DruidFeederConsumer:
                 "compression.type": "lz4",
                 "max.in.flight.requests.per.connection": 5,
                 "enable.idempotence": True,
+                "security.protocol": "SASL_SSL",
+                "sasl.mechanism": "AWS_MSK_IAM",
+                "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
             }
         )
 

@@ -65,46 +65,29 @@ kafka:
     max_in_flight_requests: 5
     enable_idempotence: true
 
-# ----- Flink Processing -----
+# ----- Flink Processing (Amazon Managed Service for Apache Flink) -----
+# Infrastructure is managed by Terraform (terraform/modules/flink/main.tf).
+# Parallelism, checkpointing, and scaling are configured in the managed service.
 flink:
+  managed_service: true
+  application_name: zomato-data-platform-${ENVIRONMENT:prod}-pipeline4-realtime
+  runtime_environment: FLINK-1_18
   job_name: zomato-realtime-events-processor
-  parallelism: 64
-  max_parallelism: 128
+  parallelism: 32
+  parallelism_per_kpu: 4
+  auto_scaling_enabled: true
 
   checkpointing:
-    interval_ms: 30000
-    timeout_ms: 120000
-    min_pause_ms: 15000
-    max_concurrent: 1
+    interval_ms: 60000
     mode: EXACTLY_ONCE
-    externalized: RETAIN_ON_CANCELLATION
+    min_pause_ms: 30000
     type: s3
     bucket: ${S3_CHECKPOINTS_BUCKET:zomato-data-platform-prod-checkpoints}
     prefix: "pipeline4-realtime/flink-checkpoints"
 
-  state_backend:
-    type: rocksdb
-    incremental: true
-    timer_service_type: rocksdb
-    block_cache_size_mb: 256
-    write_buffer_size_mb: 128
-    max_write_buffers: 4
-
-  restart_strategy:
-    type: exponential-delay
-    initial_backoff_seconds: 5
-    max_backoff_seconds: 300
-    backoff_multiplier: 2.0
-    reset_backoff_threshold_seconds: 600
-    jitter_factor: 0.1
-
-  resource:
-    jobmanager_memory_mb: 8192
-    jobmanager_cpu: 2
-    taskmanager_memory_mb: 16384
-    taskmanager_cpu: 4
-    taskmanager_slots: 4
-    taskmanager_count: 16
+  monitoring:
+    metrics_level: TASK
+    log_level: INFO
 
   # Complex Event Processing windows
   cep:

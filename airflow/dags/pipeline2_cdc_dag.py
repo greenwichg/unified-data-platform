@@ -9,6 +9,7 @@ data freshness in the Iceberg CDC tables. Runs every 10 minutes.
 import json
 from datetime import datetime, timedelta
 
+import boto3
 import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
@@ -32,8 +33,9 @@ default_args = {
 }
 
 DEBEZIUM_CONNECT_URL = "{{ var.value.debezium_connect_url }}"
-FLINK_REST_URL = "{{ var.value.flink_rest_url }}"
 KAFKA_BOOTSTRAP = "{{ var.value.kafka_bootstrap_servers }}"
+MANAGED_FLINK_APP_NAME = "{{ var.value.managed_flink_cdc_app_name }}"
+AWS_REGION = "{{ var.value.aws_region }}"
 
 CDC_CONNECTORS = [
     "zomato-mysql-cdc-orders",
@@ -185,42 +187,54 @@ def check_kafka_consumer_lag(**context):
 
 
 def check_flink_cdc_jobs(**context):
-    """Monitor Flink CDC processing jobs via Flink REST API."""
-    flink_url = Variable.get("flink_rest_url")
+    """Monitor Flink CDC job health via Amazon Managed Flink (kinesisanalyticsv2) API."""
+    app_name = Variable.get("managed_flink_cdc_app_name")
+    region = Variable.get("aws_region", default_var="ap-south-1")
     job_statuses = {}
     failed_jobs = []
 
     try:
-        response = requests.get(f"{flink_url}/jobs/overview", timeout=15)
-        response.raise_for_status()
-        jobs = response.json().get("jobs", [])
+        client = boto3.client("kinesisanalyticsv2", region_name=region)
+        response = client.describe_application(ApplicationName=app_name)
+        app_detail = response["ApplicationDetail"]
 
-        cdc_jobs = [j for j in jobs if "cdc" in j.get("name", "").lower()]
+        app_status = app_detail["ApplicationStatus"]
+        app_arn = app_detail["ApplicationARN"]
+        app_version = app_detail["ApplicationVersionId"]
 
-        for job in cdc_jobs:
-            job_id = job["jid"]
-            job_name = job["name"]
-            job_state = job["state"]
+        # Extract runtime environment and configuration details
+        runtime_env = app_detail.get("RuntimeEnvironment", "UNKNOWN")
+        create_time = str(app_detail.get("CreateTimestamp", ""))
+        update_time = str(app_detail.get("LastUpdateTimestamp", ""))
 
-            job_statuses[job_name] = {
-                "job_id": job_id,
-                "state": job_state,
-                "start_time": job.get("start-time"),
-                "duration": job.get("duration"),
-            }
+        job_statuses[app_name] = {
+            "application_arn": app_arn,
+            "status": app_status,
+            "version": app_version,
+            "runtime_environment": runtime_env,
+            "create_time": create_time,
+            "last_update_time": update_time,
+        }
 
-            if job_state not in ("RUNNING", "CREATED", "RESTARTING"):
-                failed_jobs.append(f"{job_name} ({job_id}): {job_state}")
+        # RUNNING is the healthy state for Managed Flink applications
+        if app_status not in ("RUNNING", "STARTING", "UPDATING", "AUTOSCALING"):
+            failed_jobs.append(f"{app_name}: status={app_status}")
 
-    except requests.exceptions.RequestException as e:
-        raise AirflowException(f"Cannot reach Flink REST API: {e}")
+    except client.exceptions.ResourceNotFoundException:
+        raise AirflowException(
+            f"Managed Flink application not found: {app_name}"
+        )
+    except Exception as e:
+        raise AirflowException(
+            f"Cannot query Managed Flink application {app_name}: {e}"
+        )
 
     context["ti"].xcom_push(key="flink_job_statuses", value=job_statuses)
 
     if failed_jobs:
-        raise AirflowException(f"Flink CDC jobs not running: {failed_jobs}")
+        raise AirflowException(f"Managed Flink CDC application not running: {failed_jobs}")
 
-    print(f"All {len(cdc_jobs)} Flink CDC jobs are running")
+    print(f"Managed Flink CDC application '{app_name}' is {app_status}")
     return job_statuses
 
 

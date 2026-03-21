@@ -40,6 +40,10 @@ FLINK_SQL_STATEMENTS = {
             'topic' = 'orders',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
             'properties.group.id' = 'flink-cdc-orders',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'avro-confluent',
             'avro-confluent.url' = '{schema_registry_url}',
             'scan.startup.mode' = 'earliest-offset'
@@ -63,6 +67,10 @@ FLINK_SQL_STATEMENTS = {
             'topic' = 'users',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
             'properties.group.id' = 'flink-cdc-users',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'avro-confluent',
             'avro-confluent.url' = '{schema_registry_url}',
             'scan.startup.mode' = 'earliest-offset'
@@ -88,6 +96,10 @@ FLINK_SQL_STATEMENTS = {
             'topic' = 'menu',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
             'properties.group.id' = 'flink-cdc-menu',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
             'format' = 'avro-confluent',
             'avro-confluent.url' = '{schema_registry_url}',
             'scan.startup.mode' = 'earliest-offset'
@@ -114,8 +126,9 @@ FLINK_SQL_STATEMENTS = {
         ) PARTITIONED BY (dt) WITH (
             'connector' = 'iceberg',
             'catalog-name' = 'zomato_iceberg',
-            'catalog-type' = 'hive',
+            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
             'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
+            'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
             'format-version' = '2',
             'write.format.default' = 'orc',
             'write.orc.compress' = 'SNAPPY',
@@ -141,8 +154,9 @@ FLINK_SQL_STATEMENTS = {
         ) PARTITIONED BY (dt) WITH (
             'connector' = 'iceberg',
             'catalog-name' = 'zomato_iceberg',
-            'catalog-type' = 'hive',
+            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
             'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
+            'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
             'format-version' = '2',
             'write.format.default' = 'orc',
             'write.upsert.enabled' = 'true'
@@ -236,7 +250,7 @@ def generate_flink_job_config(
         },
         "iceberg": {
             "warehouse": f"s3://{s3_bucket}/pipeline2-cdc/iceberg",
-            "catalog_type": "hive",
+            "catalog_impl": "org.apache.iceberg.aws.glue.GlueCatalog",
             "write_format": "orc",
             "upsert_enabled": True,
         },
@@ -261,7 +275,7 @@ def write_flink_job_config(config: dict, output_path: str) -> None:
 
 if __name__ == "__main__":
     config = generate_flink_job_config(
-        kafka_bootstrap=os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092"),
+        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
         schema_registry_url=os.environ.get(
             "SCHEMA_REGISTRY_URL", "http://localhost:8081"
         ),

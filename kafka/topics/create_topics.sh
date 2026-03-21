@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Zomato Data Platform - Kafka Topic Creation Script
+# Zomato Data Platform - Kafka Topic Creation Script (MSK)
 # Creates all required topics with appropriate partition counts and configs
 # Designed for 450M messages/min throughput across the cluster
 #
 # Usage:
-#   ./create_topics.sh [--bootstrap-server kafka1:9092] [--dry-run]
+#   ./create_topics.sh [--bootstrap-server b-1.msk-cluster:9094] [--dry-run]
 #
 # Prerequisites:
 #   - kafka-topics.sh available in PATH (or set KAFKA_HOME)
-#   - Cluster must be running with sufficient brokers (min 3)
+#   - AWS MSK cluster must be running
+#   - IAM auth configured (aws-msk-iam-auth library on classpath)
 # ============================================================================
 
 set -euo pipefail
 
 # ---- Configuration ----
-BOOTSTRAP_SERVER="${1:-kafka1.zomato-data.internal:9092}"
+BOOTSTRAP_SERVER="${1:-${MSK_BOOTSTRAP_TLS:-b-1.zomato-data-platform-msk.kafka.ap-south-1.amazonaws.com:9094}}"
 KAFKA_BIN="${KAFKA_HOME:-/opt/kafka}/bin/kafka-topics.sh"
 REPLICATION_FACTOR=3
 DRY_RUN=false
+
+# ---- IAM Auth Command Config ----
+COMMAND_CONFIG_FILE=$(mktemp /tmp/msk-client-XXXXXX.properties)
+cat > "$COMMAND_CONFIG_FILE" <<EOF
+security.protocol=SASL_SSL
+sasl.mechanism=AWS_MSK_IAM
+sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;
+sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbackHandler
+EOF
+trap "rm -f $COMMAND_CONFIG_FILE" EXIT
 
 # Parse arguments
 for arg in "$@"; do
@@ -57,13 +68,13 @@ create_topic() {
     fi
 
     # Check if topic already exists
-    if $KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --list 2>/dev/null | grep -qx "$topic_name"; then
+    if $KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --command-config "$COMMAND_CONFIG_FILE" --list 2>/dev/null | grep -qx "$topic_name"; then
         log "Topic ${topic_name} already exists. Updating configs..."
-        $KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" \
+        $KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --command-config "$COMMAND_CONFIG_FILE" \
             --alter --topic "$topic_name" \
             --partitions "$partitions" 2>/dev/null || true
     else
-        local cmd="$KAFKA_BIN --bootstrap-server $BOOTSTRAP_SERVER \
+        local cmd="$KAFKA_BIN --bootstrap-server $BOOTSTRAP_SERVER --command-config $COMMAND_CONFIG_FILE \
             --create \
             --topic $topic_name \
             --partitions $partitions \
@@ -85,8 +96,9 @@ create_topic() {
 
 # ---- Main ----
 log "============================================"
-log "Zomato Kafka Topic Creation"
+log "Zomato Kafka Topic Creation (MSK)"
 log "Bootstrap: ${BOOTSTRAP_SERVER}"
+log "Auth: IAM (SASL_SSL)"
 log "Replication Factor: ${REPLICATION_FACTOR}"
 log "Dry Run: ${DRY_RUN}"
 log "============================================"
@@ -252,6 +264,6 @@ create_topic "_schemas" 1 \
 log "============================================"
 log "Topic creation complete."
 log "Listing all topics:"
-$KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --list 2>/dev/null | sort
+$KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --command-config "$COMMAND_CONFIG_FILE" --list 2>/dev/null | sort
 log "============================================"
-log "Total topics: $($KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --list 2>/dev/null | wc -l)"
+log "Total topics: $($KAFKA_BIN --bootstrap-server "$BOOTSTRAP_SERVER" --command-config "$COMMAND_CONFIG_FILE" --list 2>/dev/null | wc -l)"

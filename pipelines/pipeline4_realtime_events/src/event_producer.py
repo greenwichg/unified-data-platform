@@ -115,6 +115,10 @@ class ZomatoEventProducer:
             "compression.type": "lz4",
             "max.in.flight.requests.per.connection": 5,
             "enable.idempotence": True,
+            "security.protocol": "SASL_SSL",
+            "sasl.mechanism": "AWS_MSK_IAM",
+            "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+            "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
         }
         self.producer = Producer(self.producer_config)
         self.string_serializer = StringSerializer("utf_8")
@@ -211,7 +215,7 @@ def create_sample_order_event(user_id: str, city: str = "Mumbai") -> ZomatoEvent
 
 
 if __name__ == "__main__":
-    bootstrap = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+    bootstrap = os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098")
     schema_registry = os.environ.get("SCHEMA_REGISTRY_URL")
 
     producer = ZomatoEventProducer(

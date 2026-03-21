@@ -1,6 +1,10 @@
 # ============================================================================
 # Pipeline 1 - Flink CEP Job Configuration
-# This file is loaded by Flink's configuration framework at startup.
+# NOTE: This application is now managed by Amazon Managed Service for Apache
+# Flink (formerly Kinesis Data Analytics). Infrastructure settings such as
+# parallelism, checkpointing, and resource allocation are controlled via
+# Terraform (terraform/modules/flink/main.tf). The values below are kept as
+# a reference for the application-level defaults embedded in the JAR.
 # ============================================================================
 
 # -- Job settings --

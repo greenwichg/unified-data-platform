@@ -1,7 +1,17 @@
 # ============================================================================
 # Zomato Data Platform - Kafka JMX Exporter Configuration
 # Prometheus JMX Exporter for Kafka broker, producer, and consumer metrics.
-# Deployed as a Java agent on all Kafka broker instances.
+#
+# NOTE: With AWS MSK open monitoring enabled, JMX metrics are exposed natively
+# via a Prometheus-compatible endpoint on each broker (port 11001 for JMX,
+# port 11002 for Node exporter). This configuration file is kept as reference
+# and can be used for non-MSK Kafka clients (producers/consumers) that still
+# need local JMX metric export.
+#
+# MSK Prometheus endpoints:
+#   JMX metrics:  http://<broker>:11001/metrics
+#   Node metrics: http://<broker>:11002/metrics
+#
 # Port: 9404
 # ============================================================================
 
