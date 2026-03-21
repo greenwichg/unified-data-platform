@@ -1,5 +1,5 @@
 ###############################################################################
-# Kafka Module - Variables
+# Kafka Module - Variables (Amazon MSK)
 ###############################################################################
 
 variable "project_name" {
@@ -14,37 +14,43 @@ variable "environment" {
 }
 
 variable "vpc_id" {
-  description = "VPC ID for Kafka cluster"
+  description = "VPC ID for MSK cluster"
   type        = string
 }
 
 variable "subnet_ids" {
-  description = "Private subnet IDs for Kafka brokers"
+  description = "Private subnet IDs across 3 AZs for MSK brokers"
   type        = list(string)
 }
 
-variable "instance_type" {
-  description = "EC2 instance type for Kafka brokers"
+variable "kafka_version" {
+  description = "Apache Kafka version for MSK"
   type        = string
-  default     = "r8g.4xlarge"
+  default     = "3.6.1"
 }
 
-variable "broker_count" {
-  description = "Number of Kafka brokers"
-  type        = number
-  default     = 9
+variable "instance_type" {
+  description = "MSK broker instance type"
+  type        = string
+  default     = "kafka.r8g.4xlarge"
 }
 
 variable "ebs_volume_size" {
-  description = "EBS volume size in GB per broker"
+  description = "EBS volume size in GB per MSK broker"
   type        = number
   default     = 2000
 }
 
-variable "kafka_version" {
-  description = "Apache Kafka version"
+variable "number_of_brokers" {
+  description = "Total number of MSK broker nodes (must be a multiple of the number of AZs)"
+  type        = number
+  default     = 9
+}
+
+variable "enhanced_monitoring" {
+  description = "MSK enhanced monitoring level"
   type        = string
-  default     = "3.6.1"
+  default     = "PER_TOPIC_PER_BROKER"
 }
 
 variable "tags" {

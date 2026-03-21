@@ -1,9 +1,12 @@
+# NOTE: Kafka broker configuration is now managed via AWS MSK Configuration.
+# This file is kept as reference for the MSK configuration settings.
+#
 # ============================================================================
-# Zomato Data Platform - Kafka Broker Configuration
+# Zomato Data Platform - Kafka Broker Configuration (REFERENCE ONLY)
 # Template: Jinja2 (rendered by Ansible)
-# Cluster: zomato-kafka-prod (AWS MSK compatible)
+# Cluster: zomato-kafka-prod (now AWS MSK managed)
 # Throughput target: 450M messages/min across cluster
-# Instance type: i3en.6xlarge (24 vCPU, 192 GB, 12x NVMe SSDs)
+# MSK instance type: r8g.4xlarge
 # ============================================================================
 
 # ----- Broker Identity -----

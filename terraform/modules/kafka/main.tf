@@ -1,101 +1,51 @@
 ###############################################################################
-# Kafka Module - Self-Hosted Kafka Cluster on EC2
+# Kafka Module - Amazon MSK (Managed Streaming for Apache Kafka)
 # 450M+ messages per minute across all pipelines
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_ids" {
-  description = "Private subnet IDs for Kafka brokers"
-  type        = list(string)
-}
-
-variable "instance_type" {
-  description = "EC2 instance type for Kafka brokers"
-  type        = string
-  default     = "r8g.4xlarge"
-}
-
-variable "broker_count" {
-  description = "Number of Kafka brokers"
-  type        = number
-  default     = 9
-}
-
-variable "ebs_volume_size" {
-  description = "EBS volume size in GB per broker"
-  type        = number
-  default     = 2000
-}
-
-variable "kafka_version" {
-  type    = string
-  default = "3.6.1"
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
+# ---------- Data Sources ----------
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 # ---------- Security Group ----------
 resource "aws_security_group" "kafka" {
-  name_prefix = "${var.project_name}-${var.environment}-kafka-"
+  name_prefix = "${var.project_name}-${var.environment}-msk-"
   vpc_id      = var.vpc_id
 
-  # Kafka broker port
+  # Kafka TLS port
   ingress {
-    from_port   = 9092
-    to_port     = 9092
+    from_port   = 9094
+    to_port     = 9094
     protocol    = "tcp"
     self        = true
-    description = "Kafka broker communication"
+    description = "MSK TLS communication"
   }
 
-  # Kafka SSL port
+  # Kafka IAM auth port
   ingress {
-    from_port   = 9093
-    to_port     = 9093
+    from_port   = 9098
+    to_port     = 9098
     protocol    = "tcp"
     self        = true
-    description = "Kafka SSL communication"
+    description = "MSK IAM authentication"
   }
 
-  # ZooKeeper ports
+  # ZooKeeper port (MSK managed, but clients may need access)
   ingress {
     from_port   = 2181
     to_port     = 2181
     protocol    = "tcp"
     self        = true
-    description = "ZooKeeper client"
+    description = "ZooKeeper client (MSK managed)"
   }
 
+  # JMX monitoring (MSK open monitoring)
   ingress {
-    from_port   = 2888
-    to_port     = 3888
+    from_port   = 11001
+    to_port     = 11002
     protocol    = "tcp"
     self        = true
-    description = "ZooKeeper leader election"
-  }
-
-  # JMX monitoring
-  ingress {
-    from_port   = 9999
-    to_port     = 9999
-    protocol    = "tcp"
-    self        = true
-    description = "JMX monitoring"
+    description = "MSK open monitoring (Prometheus JMX and Node exporter)"
   }
 
   egress {
@@ -106,7 +56,7 @@ resource "aws_security_group" "kafka" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-kafka-sg"
+    Name = "${var.project_name}-${var.environment}-msk-sg"
   })
 
   lifecycle {
@@ -114,139 +64,108 @@ resource "aws_security_group" "kafka" {
   }
 }
 
-# ---------- IAM Role for Kafka EC2 Instances ----------
-resource "aws_iam_role" "kafka" {
-  name = "${var.project_name}-${var.environment}-kafka-role"
+# ---------- CloudWatch Log Group ----------
+resource "aws_cloudwatch_log_group" "msk" {
+  name              = "/msk/${var.project_name}"
+  retention_in_days = 30
+  tags              = var.tags
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
+# ---------- S3 Bucket for MSK Logs ----------
+data "aws_s3_bucket" "data_lake" {
+  bucket = "${var.project_name}-${var.environment}-raw"
+}
+
+# ---------- MSK Configuration ----------
+resource "aws_msk_configuration" "this" {
+  name              = "${var.project_name}-${var.environment}-msk-config"
+  kafka_versions    = [var.kafka_version]
+  description       = "MSK configuration for ${var.project_name} ${var.environment}"
+
+  server_properties = <<-PROPERTIES
+    auto.create.topics.enable=false
+    default.replication.factor=3
+    min.insync.replicas=2
+    num.partitions=12
+    log.retention.hours=168
+    message.max.bytes=10485760
+    compression.type=producer
+    log.cleanup.policy=delete,compact
+  PROPERTIES
 
   tags = var.tags
 }
 
-resource "aws_iam_role_policy" "kafka_s3" {
-  name = "kafka-s3-access"
-  role = aws_iam_role.kafka.id
+# ---------- MSK Cluster ----------
+resource "aws_msk_cluster" "this" {
+  cluster_name           = "${var.project_name}-${var.environment}-msk"
+  kafka_version          = var.kafka_version
+  number_of_broker_nodes = var.number_of_brokers
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:ListBucket"
-      ]
-      Resource = ["*"]
-    }]
-  })
-}
+  broker_node_group_info {
+    instance_type   = var.instance_type
+    client_subnets  = var.subnet_ids
+    security_groups = [aws_security_group.kafka.id]
 
-resource "aws_iam_instance_profile" "kafka" {
-  name = "${var.project_name}-${var.environment}-kafka-profile"
-  role = aws_iam_role.kafka.name
-}
-
-# ---------- Launch Template ----------
-resource "aws_launch_template" "kafka" {
-  name_prefix   = "${var.project_name}-${var.environment}-kafka-"
-  image_id      = data.aws_ami.amazon_linux.id
-  instance_type = var.instance_type
-
-  iam_instance_profile {
-    arn = aws_iam_instance_profile.kafka.arn
-  }
-
-  vpc_security_group_ids = [aws_security_group.kafka.id]
-
-  block_device_mappings {
-    device_name = "/dev/xvdf"
-    ebs {
-      volume_size           = var.ebs_volume_size
-      volume_type           = "gp3"
-      iops                  = 16000
-      throughput            = 1000
-      encrypted             = true
-      delete_on_termination = false
+    storage_info {
+      ebs_storage_info {
+        volume_size = var.ebs_volume_size
+        provisioned_throughput {
+          enabled           = true
+          volume_throughput  = 250
+        }
+      }
     }
   }
 
-  user_data = base64encode(templatefile("${path.module}/userdata.sh.tpl", {
-    kafka_version   = var.kafka_version
-    broker_count    = var.broker_count
-    environment     = var.environment
-  }))
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(var.tags, {
-      Name      = "${var.project_name}-${var.environment}-kafka-broker"
-      Component = "kafka"
-    })
+  encryption_info {
+    encryption_in_transit {
+      client_broker = "TLS"
+      in_cluster    = true
+    }
+    # Use AWS managed key for at-rest encryption
   }
 
-  metadata_options {
-    http_tokens = "required"
+  client_authentication {
+    sasl {
+      iam = true
+    }
   }
 
-  tags = var.tags
-}
-
-# ---------- Auto Scaling Group ----------
-resource "aws_autoscaling_group" "kafka" {
-  name                = "${var.project_name}-${var.environment}-kafka-asg"
-  desired_capacity    = var.broker_count
-  max_size            = var.broker_count + 3
-  min_size            = var.broker_count
-  vpc_zone_identifier = var.subnet_ids
-
-  launch_template {
-    id      = aws_launch_template.kafka.id
-    version = "$Latest"
+  open_monitoring {
+    prometheus {
+      jmx_exporter {
+        enabled_in_broker = true
+      }
+      node_exporter {
+        enabled_in_broker = true
+      }
+    }
   }
 
-  tag {
-    key                 = "Name"
-    value               = "${var.project_name}-${var.environment}-kafka-broker"
-    propagate_at_launch = true
+  logging_info {
+    broker_logs {
+      cloudwatch_logs {
+        enabled   = true
+        log_group = aws_cloudwatch_log_group.msk.name
+      }
+      s3_logs {
+        enabled = true
+        bucket  = data.aws_s3_bucket.data_lake.id
+        prefix  = "msk-logs/${var.project_name}-${var.environment}"
+      }
+    }
   }
 
-  tag {
-    key                 = "Component"
-    value               = "kafka"
-    propagate_at_launch = true
-  }
-}
-
-# ---------- AMI Lookup ----------
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-arm64"]
+  configuration_info {
+    arn      = aws_msk_configuration.this.arn
+    revision = aws_msk_configuration.this.latest_revision
   }
 
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
+  enhanced_monitoring = var.enhanced_monitoring
 
-# ---------- Outputs ----------
-output "security_group_id" {
-  value = aws_security_group.kafka.id
-}
-
-output "broker_asg_name" {
-  value = aws_autoscaling_group.kafka.name
+  tags = merge(var.tags, {
+    Name      = "${var.project_name}-${var.environment}-msk"
+    Component = "kafka"
+  })
 }
