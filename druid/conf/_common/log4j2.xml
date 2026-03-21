@@ -3,24 +3,33 @@
   Zomato Data Platform - Apache Druid Log4j2 Configuration
   Shared logging config across all Druid services.
   Logs are collected by Fluentd and shipped to CloudWatch Logs.
+
+  Key design decisions:
+  - AsyncLogger for all high-throughput loggers to avoid blocking query threads
+  - JSON layout on file appenders for structured log ingestion by Fluentd
+  - Separate audit log file for security/compliance review
+  - Separate query log for slow query analysis
+  - 14-day retention on general logs, 30-day on audit logs
+  - LMAX Disruptor ring buffer for async logging (requires disruptor JAR on classpath)
 -->
-<Configuration status="WARN">
+<Configuration status="WARN" monitorInterval="30">
   <Properties>
     <Property name="log.dir">/var/log/druid</Property>
     <Property name="log.pattern">%d{ISO8601} %p [%t] %c - %m%n</Property>
-    <Property name="json.pattern">{"timestamp":"%d{ISO8601}","level":"%p","thread":"%t","logger":"%c","message":"%m","exception":"%xEx"}%n</Property>
+    <Property name="json.pattern">{"timestamp":"%d{ISO8601}","level":"%p","thread":"%t","logger":"%c","message":"%m","exception":"%xEx","service":"${sys:druid.service:-unknown}","host":"${sys:druid.host:-localhost}"}%n</Property>
   </Properties>
 
   <Appenders>
-    <!-- Console appender for container stdout -->
+    <!-- Console appender for container stdout / ECS / k8s log collection -->
     <Console name="Console" target="SYSTEM_OUT">
       <PatternLayout pattern="${log.pattern}"/>
     </Console>
 
-    <!-- Rolling file appender for structured JSON logs -->
+    <!-- Rolling file appender for structured JSON logs (primary log sink) -->
     <RollingFile name="RollingFile"
                  fileName="${log.dir}/${sys:druid.node.type}.log"
-                 filePattern="${log.dir}/${sys:druid.node.type}-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${log.dir}/${sys:druid.node.type}-%d{yyyy-MM-dd}-%i.log.gz"
+                 immediateFlush="false">
       <PatternLayout pattern="${json.pattern}"/>
       <Policies>
         <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -34,54 +43,148 @@
       </DefaultRolloverStrategy>
     </RollingFile>
 
-    <!-- Separate file for audit logs -->
+    <!-- Separate file for audit logs (security, config changes, rule updates) -->
     <RollingFile name="AuditLog"
                  fileName="${log.dir}/audit.log"
-                 filePattern="${log.dir}/audit-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${log.dir}/audit-%d{yyyy-MM-dd}-%i.log.gz"
+                 immediateFlush="true">
       <PatternLayout pattern="${json.pattern}"/>
       <Policies>
         <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
         <SizeBasedTriggeringPolicy size="200MB"/>
       </Policies>
-      <DefaultRolloverStrategy max="30"/>
+      <DefaultRolloverStrategy max="30">
+        <Delete basePath="${log.dir}" maxDepth="1">
+          <IfFileName glob="audit-*.log.gz"/>
+          <IfLastModified age="30d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
     </RollingFile>
+
+    <!-- Separate file for slow/expensive query logs -->
+    <RollingFile name="QueryLog"
+                 fileName="${log.dir}/queries.log"
+                 filePattern="${log.dir}/queries-%d{yyyy-MM-dd}-%i.log.gz"
+                 immediateFlush="false">
+      <PatternLayout pattern="${json.pattern}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="500MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="7">
+        <Delete basePath="${log.dir}" maxDepth="1">
+          <IfFileName glob="queries-*.log.gz"/>
+          <IfLastModified age="7d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+
+    <!-- Separate file for ingestion/indexing task logs -->
+    <RollingFile name="IngestionLog"
+                 fileName="${log.dir}/ingestion.log"
+                 filePattern="${log.dir}/ingestion-%d{yyyy-MM-dd}-%i.log.gz"
+                 immediateFlush="false">
+      <PatternLayout pattern="${json.pattern}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+        <SizeBasedTriggeringPolicy size="500MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="14">
+        <Delete basePath="${log.dir}" maxDepth="1">
+          <IfFileName glob="ingestion-*.log.gz"/>
+          <IfLastModified age="14d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+
+    <!-- Async wrapper appenders for non-blocking logging on hot paths -->
+    <Async name="AsyncRollingFile" bufferSize="8192">
+      <AppenderRef ref="RollingFile"/>
+    </Async>
+
+    <Async name="AsyncQueryLog" bufferSize="4096">
+      <AppenderRef ref="QueryLog"/>
+    </Async>
+
+    <Async name="AsyncIngestionLog" bufferSize="4096">
+      <AppenderRef ref="IngestionLog"/>
+    </Async>
   </Appenders>
 
   <Loggers>
-    <!-- Druid core -->
-    <Logger name="org.apache.druid" level="INFO" additivity="false">
+    <!-- Druid core - async file + console -->
+    <AsyncLogger name="org.apache.druid" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
 
-    <!-- Kafka indexing service - more verbose for ingestion debugging -->
-    <Logger name="org.apache.druid.indexing.kafka" level="INFO" additivity="false">
+    <!-- Kafka indexing service - route to ingestion log for isolated debugging -->
+    <AsyncLogger name="org.apache.druid.indexing.kafka" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
+      <AppenderRef ref="AsyncIngestionLog"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
 
-    <!-- SQL planning -->
-    <Logger name="org.apache.druid.sql" level="INFO" additivity="false">
+    <!-- General indexing/task lifecycle -->
+    <AsyncLogger name="org.apache.druid.indexing" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
+      <AppenderRef ref="AsyncIngestionLog"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
 
-    <!-- Audit logging -->
+    <!-- SQL planning and execution -->
+    <AsyncLogger name="org.apache.druid.sql" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
+
+    <!-- Query execution and lifecycle - route to dedicated query log -->
+    <AsyncLogger name="org.apache.druid.query" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="AsyncQueryLog"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
+
+    <!-- Request logging (slow queries, query audit trail) -->
+    <AsyncLogger name="org.apache.druid.server.RequestLogLine" level="INFO" additivity="false">
+      <AppenderRef ref="AsyncQueryLog"/>
+    </AsyncLogger>
+
+    <!-- Audit logging - immediate flush, separate file for compliance -->
     <Logger name="org.apache.druid.server.security.AuthenticationUtils" level="INFO" additivity="false">
       <AppenderRef ref="AuditLog"/>
     </Logger>
+
+    <!-- Coordinator audit events (rule changes, segment operations) -->
+    <Logger name="org.apache.druid.server.coordinator" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="AuditLog"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </Logger>
+
+    <!-- Segment lifecycle events -->
+    <AsyncLogger name="org.apache.druid.server.coordination" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="AsyncRollingFile"/>
+    </AsyncLogger>
 
     <!-- Reduce noise from chatty libraries -->
     <Logger name="org.apache.zookeeper" level="WARN"/>
     <Logger name="org.apache.curator" level="WARN"/>
     <Logger name="org.eclipse.jetty" level="WARN"/>
     <Logger name="com.amazonaws" level="WARN"/>
+    <Logger name="com.amazonaws.request" level="WARN"/>
     <Logger name="org.apache.kafka" level="WARN"/>
+    <Logger name="org.apache.kafka.clients.consumer" level="WARN"/>
     <Logger name="org.jboss.netty" level="WARN"/>
+    <Logger name="com.google.common" level="WARN"/>
+    <Logger name="org.skife.jdbi" level="WARN"/>
+    <Logger name="com.mysql" level="WARN"/>
+    <Logger name="org.apache.http" level="WARN"/>
 
     <Root level="INFO">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
+      <AppenderRef ref="AsyncRollingFile"/>
     </Root>
   </Loggers>
 </Configuration>
