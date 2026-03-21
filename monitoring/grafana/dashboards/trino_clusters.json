@@ -1,0 +1,214 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Trino cluster monitoring for Zomato Data Platform",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Cluster Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [ { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Coordinator Status",
+      "type": "stat",
+      "targets": [
+        { "expr": "up{job=\"trino-coordinator\"}", "legendFormat": "Coordinator", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }, "unit": "short" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Active Workers",
+      "type": "stat",
+      "targets": [
+        { "expr": "count(up{job=\"trino-workers\"} == 1)", "legendFormat": "Workers", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 50 } ] }, "unit": "short" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Running Queries",
+      "type": "stat",
+      "targets": [
+        { "expr": "trino_execution_QueryManager_RunningQueries", "legendFormat": "Running", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 } ] }, "unit": "short" }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Queued Queries",
+      "type": "stat",
+      "targets": [
+        { "expr": "trino_execution_QueryManager_QueuedQueries", "legendFormat": "Queued", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Query Performance",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Queries Per Second",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m])", "legendFormat": "Completed", "refId": "A" },
+        { "expr": "rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m])", "legendFormat": "Failed", "refId": "B" },
+        { "expr": "rate(trino_execution_QueryManager_StartedQueries_TotalCount[5m])", "legendFormat": "Started", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Query Execution Time Percentiles",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "trino_execution_QueryManager_ExecutionTime_P50 / 1000", "legendFormat": "p50", "refId": "A" },
+        { "expr": "trino_execution_QueryManager_ExecutionTime_P90 / 1000", "legendFormat": "p90", "refId": "B" },
+        { "expr": "trino_execution_QueryManager_ExecutionTime_P99 / 1000", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "percentunit" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "title": "Query Failure Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m]) / (rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m]) + 0.001)", "legendFormat": "Failure Rate", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "Bps" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "title": "Input Data Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(trino_execution_QueryManager_InputDataSize_TotalCount[5m])", "legendFormat": "Input Bytes/sec", "refId": "A" },
+        { "expr": "rate(trino_execution_QueryManager_OutputDataSize_TotalCount[5m])", "legendFormat": "Output Bytes/sec", "refId": "B" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "Memory",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "bytes" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "title": "Cluster Memory Pool",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "trino_memory_ClusterMemoryPool_MaxBytes", "legendFormat": "Max", "refId": "A" },
+        { "expr": "trino_memory_ClusterMemoryPool_MaxBytes - trino_memory_ClusterMemoryPool_FreeBytes", "legendFormat": "Used", "refId": "B" },
+        { "expr": "trino_memory_ClusterMemoryPool_ReservedBytes", "legendFormat": "Reserved", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "bytes" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "title": "Worker Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "trino_memory_MemoryPool_MaxBytes - trino_memory_MemoryPool_FreeBytes", "legendFormat": "Used {{ instance }}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "percentunit" }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 11,
+      "title": "Worker CPU Utilization",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "trino_execution_TaskManager_ProcessorUtilization", "legendFormat": "{{ instance }}", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["trino", "zomato", "data-platform", "sql"],
+  "templating": { "list": [] },
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Kolkata",
+  "title": "Trino Clusters",
+  "uid": "trino-clusters",
+  "version": 1
+}

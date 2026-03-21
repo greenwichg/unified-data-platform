@@ -1,0 +1,116 @@
+# ============================================================================
+# Pipeline 1 - Batch ETL Configuration
+# Aurora MySQL -> Sqoop -> S3 (ORC)
+# Schedule: Every 6 hours via Airflow
+# ============================================================================
+
+pipeline:
+  name: pipeline1_batch_etl
+  description: "Batch ETL from Aurora MySQL to S3 data lake in ORC format"
+  schedule: "0 */6 * * *"
+  owner: data-platform-team
+  alert_channel: "#data-pipeline-alerts"
+
+# ----- Source: Aurora MySQL -----
+source:
+  type: aurora_mysql
+  jdbc_url: "jdbc:mysql://${AURORA_HOST}:3306/zomato"
+  username: ${DB_USER}
+  password_secret: "arn:aws:secretsmanager:ap-south-1:ACCOUNT_ID:secret:zomato/aurora/etl-user"
+
+  tables:
+    - name: orders
+      split_by: order_id
+      num_mappers: 16
+      incremental_column: updated_at
+      merge_key: order_id
+      fetch_size: 10000
+      boundary_query: "SELECT MIN(order_id), MAX(order_id) FROM orders WHERE updated_at >= ?"
+
+    - name: users
+      split_by: user_id
+      num_mappers: 8
+      incremental_column: updated_at
+      merge_key: user_id
+      fetch_size: 5000
+
+    - name: restaurants
+      split_by: restaurant_id
+      num_mappers: 4
+      incremental_column: updated_at
+      merge_key: restaurant_id
+      fetch_size: 5000
+
+    - name: menu_items
+      split_by: item_id
+      num_mappers: 8
+      incremental_column: updated_at
+      merge_key: item_id
+      fetch_size: 5000
+
+    - name: payments
+      split_by: payment_id
+      num_mappers: 12
+      incremental_column: updated_at
+      merge_key: payment_id
+      fetch_size: 10000
+
+    - name: promotions
+      split_by: promo_id
+      num_mappers: 4
+      incremental_column: updated_at
+      merge_key: promo_id
+      fetch_size: 2000
+
+# ----- Destination: S3 Data Lake -----
+destination:
+  type: s3
+  bucket: ${S3_RAW_BUCKET:zomato-data-platform-prod-raw-data-lake}
+  base_path: "pipeline1-batch-etl/sqoop-output"
+  partition_format: "year=%Y/month=%m/day=%d/hour=%H"
+  file_format: orc
+  compression: snappy
+  orc_settings:
+    stripe_size_mb: 256
+    buffer_size_kb: 256
+    row_index_stride: 10000
+    bloom_filter_columns:
+      - order_id
+      - user_id
+      - restaurant_id
+
+# ----- Sqoop Settings -----
+sqoop:
+  connection_manager: "org.apache.sqoop.manager.MySQLManager"
+  direct_mode: false
+  null_string: "\\N"
+  null_non_string: "\\N"
+  hive_import: false
+  delete_target_dir: true
+  map_column_java:
+    total_amount: "java.math.BigDecimal"
+    delivery_fee: "java.math.BigDecimal"
+    discount_amount: "java.math.BigDecimal"
+
+# ----- Checkpointing -----
+checkpoints:
+  bucket: ${S3_CHECKPOINTS_BUCKET:zomato-data-platform-prod-checkpoints}
+  prefix: "pipeline1-batch-etl/last-value"
+  format: json
+
+# ----- Quality Checks -----
+quality:
+  row_count_threshold: 0.8
+  null_check_columns:
+    orders: [order_id, user_id, order_timestamp]
+    users: [user_id, email]
+    payments: [payment_id, order_id]
+  freshness_max_hours: 7
+  enable_schema_drift_detection: true
+
+# ----- Retry & Timeout -----
+execution:
+  max_retries: 3
+  retry_delay_seconds: 300
+  task_timeout_minutes: 120
+  parallel_tables: 3

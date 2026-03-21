@@ -1,0 +1,238 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: zomato-data-platform
+    environment: production
+    region: ap-south-1
+
+rule_files:
+  - /etc/prometheus/rules/kafka_alerts.yml
+  - /etc/prometheus/rules/flink_alerts.yml
+  - /etc/prometheus/rules/trino_alerts.yml
+  - /etc/prometheus/rules/druid_alerts.yml
+  - /etc/prometheus/rules/pipeline_alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      timeout: 10s
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Prometheus self-monitoring
+  # ---------------------------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # ---------------------------------------------------------------------------
+  # Node exporters (EC2 instances)
+  # ---------------------------------------------------------------------------
+  - job_name: node-exporter
+    ec2_sd_configs:
+      - region: ap-south-1
+        port: 9100
+        filters:
+          - name: tag:Environment
+            values:
+              - production
+          - name: tag:Project
+            values:
+              - zomato-data-platform
+    relabel_configs:
+      - source_labels: [__meta_ec2_tag_Name]
+        target_label: instance_name
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance_id
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: availability_zone
+      - source_labels: [__meta_ec2_tag_Role]
+        target_label: role
+
+  # ---------------------------------------------------------------------------
+  # Kafka brokers (JMX exporter on port 7071)
+  # ---------------------------------------------------------------------------
+  - job_name: kafka
+    static_configs:
+      - targets:
+          - kafka-broker-1:7071
+          - kafka-broker-2:7071
+          - kafka-broker-3:7071
+          - kafka-broker-4:7071
+          - kafka-broker-5:7071
+        labels:
+          cluster: zomato-kafka-prod
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: (.+):7071
+        target_label: broker_host
+
+  # ---------------------------------------------------------------------------
+  # Kafka Exporter (consumer group lag metrics)
+  # ---------------------------------------------------------------------------
+  - job_name: kafka-exporter
+    static_configs:
+      - targets:
+          - kafka-exporter:9308
+        labels:
+          cluster: zomato-kafka-prod
+
+  # ---------------------------------------------------------------------------
+  # Apache Flink (JobManager + TaskManagers)
+  # ---------------------------------------------------------------------------
+  - job_name: flink-jobmanager
+    static_configs:
+      - targets:
+          - flink-jobmanager:9249
+        labels:
+          flink_cluster: zomato-flink-prod
+    metrics_path: /metrics
+
+  - job_name: flink-taskmanager
+    consul_sd_configs:
+      - server: consul:8500
+        services:
+          - flink-taskmanager
+    relabel_configs:
+      - source_labels: [__meta_consul_service_metadata_flink_cluster]
+        target_label: flink_cluster
+      - source_labels: [__meta_consul_service_metadata_taskmanager_id]
+        target_label: tm_id
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Trino (coordinator + workers)
+  # ---------------------------------------------------------------------------
+  - job_name: trino-coordinator
+    static_configs:
+      - targets:
+          - trino-coordinator:8081
+        labels:
+          trino_cluster: zomato-trino-prod
+    metrics_path: /metrics
+
+  - job_name: trino-workers
+    consul_sd_configs:
+      - server: consul:8500
+        services:
+          - trino-worker
+    relabel_configs:
+      - source_labels: [__meta_consul_service_metadata_trino_cluster]
+        target_label: trino_cluster
+      - source_labels: [__meta_consul_service_metadata_worker_id]
+        target_label: worker_id
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Apache Druid
+  # ---------------------------------------------------------------------------
+  - job_name: druid-broker
+    static_configs:
+      - targets:
+          - druid-broker-1:8091
+          - druid-broker-2:8091
+        labels:
+          druid_cluster: zomato-druid-prod
+
+  - job_name: druid-coordinator
+    static_configs:
+      - targets:
+          - druid-coordinator:8081
+        labels:
+          druid_cluster: zomato-druid-prod
+
+  - job_name: druid-historical
+    static_configs:
+      - targets:
+          - druid-historical-1:8083
+          - druid-historical-2:8083
+          - druid-historical-3:8083
+        labels:
+          druid_cluster: zomato-druid-prod
+
+  - job_name: druid-middlemanager
+    static_configs:
+      - targets:
+          - druid-middlemanager-1:8091
+          - druid-middlemanager-2:8091
+        labels:
+          druid_cluster: zomato-druid-prod
+
+  - job_name: druid-overlord
+    static_configs:
+      - targets:
+          - druid-overlord:8090
+        labels:
+          druid_cluster: zomato-druid-prod
+
+  # ---------------------------------------------------------------------------
+  # Apache Spark (via Spark metrics sink -> Prometheus)
+  # ---------------------------------------------------------------------------
+  - job_name: spark-driver
+    consul_sd_configs:
+      - server: consul:8500
+        services:
+          - spark-driver
+    relabel_configs:
+      - source_labels: [__meta_consul_service_metadata_app_name]
+        target_label: spark_app
+      - source_labels: [__meta_consul_service_metadata_app_id]
+        target_label: spark_app_id
+    metrics_path: /metrics/prometheus
+
+  - job_name: spark-executor
+    consul_sd_configs:
+      - server: consul:8500
+        services:
+          - spark-executor
+    relabel_configs:
+      - source_labels: [__meta_consul_service_metadata_app_name]
+        target_label: spark_app
+      - source_labels: [__meta_consul_service_metadata_executor_id]
+        target_label: executor_id
+    metrics_path: /metrics/prometheus
+
+  # ---------------------------------------------------------------------------
+  # Apache Airflow (StatsD exporter)
+  # ---------------------------------------------------------------------------
+  - job_name: airflow
+    static_configs:
+      - targets:
+          - airflow-statsd-exporter:9102
+        labels:
+          airflow_cluster: zomato-airflow-prod
+    metrics_path: /metrics
+
+  - job_name: airflow-webserver
+    static_configs:
+      - targets:
+          - airflow-webserver:8080
+        labels:
+          airflow_cluster: zomato-airflow-prod
+    metrics_path: /admin/metrics
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB Streams (custom exporter)
+  # ---------------------------------------------------------------------------
+  - job_name: dynamodb-streams-exporter
+    static_configs:
+      - targets:
+          - dynamodb-streams-exporter:9145
+        labels:
+          service: dynamodb-streams
+
+  # ---------------------------------------------------------------------------
+  # AWS CloudWatch Exporter (supplementary AWS-native metrics)
+  # ---------------------------------------------------------------------------
+  - job_name: cloudwatch-exporter
+    static_configs:
+      - targets:
+          - cloudwatch-exporter:9106
+    scrape_interval: 60s
+    scrape_timeout: 55s
+    honor_labels: true

@@ -1,0 +1,114 @@
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "kafka-rt1.zomato-data.internal:9093,kafka-rt2.zomato-data.internal:9093,kafka-rt3.zomato-data.internal:9093",
+        "group.id": "druid-realtime-events-ingestion",
+        "security.protocol": "PLAINTEXT",
+        "fetch.min.bytes": "1048576",
+        "fetch.max.wait.ms": "500",
+        "max.poll.records": "10000",
+        "max.partition.fetch.bytes": "10485760"
+      },
+      "topic": "druid-ingestion-events",
+      "inputFormat": {
+        "type": "json",
+        "flattenSpec": {
+          "useFieldDiscovery": false,
+          "fields": [
+            { "type": "root", "name": "event_id" },
+            { "type": "root", "name": "event_type" },
+            { "type": "root", "name": "source" },
+            { "type": "root", "name": "user_id" },
+            { "type": "root", "name": "session_id" },
+            { "type": "root", "name": "event_timestamp" },
+            { "type": "root", "name": "city" },
+            { "type": "root", "name": "order_id" },
+            { "type": "root", "name": "restaurant_id" },
+            { "type": "root", "name": "total_amount" },
+            { "type": "root", "name": "delivery_time_minutes" },
+            { "type": "root", "name": "page_name" },
+            { "type": "root", "name": "action" },
+            { "type": "path", "name": "platform", "expr": "$.device.platform" },
+            { "type": "path", "name": "app_version", "expr": "$.device.app_version" },
+            { "type": "path", "name": "os_version", "expr": "$.device.os_version" },
+            { "type": "path", "name": "latitude", "expr": "$.location.lat" },
+            { "type": "path", "name": "longitude", "expr": "$.location.lng" },
+            { "type": "path", "name": "search_query", "expr": "$.properties.search_query" },
+            { "type": "path", "name": "cuisine_filter", "expr": "$.properties.cuisine_filter" },
+            { "type": "path", "name": "sort_by", "expr": "$.properties.sort_by" }
+          ]
+        }
+      },
+      "useEarliestOffset": false,
+      "taskDuration": "PT1H",
+      "completionTimeout": "PT30M"
+    },
+    "tuningConfig": {
+      "type": "kafka",
+      "maxRowsInMemory": 1000000,
+      "maxBytesInMemory": 536870912,
+      "maxRowsPerSegment": 5000000,
+      "maxTotalRows": 20000000,
+      "intermediatePersistPeriod": "PT10M",
+      "taskCount": 8,
+      "replicas": 2,
+      "handoffConditionTimeout": 900000,
+      "resetOffsetAutomatically": false,
+      "indexSpec": {
+        "bitmap": { "type": "roaring" },
+        "dimensionCompression": "lz4",
+        "metricCompression": "lz4",
+        "longEncoding": "longs"
+      },
+      "logParseExceptions": true,
+      "maxParseExceptions": 500,
+      "maxSavedParseExceptions": 10
+    },
+    "dataSchema": {
+      "dataSource": "zomato_realtime_events",
+      "timestampSpec": {
+        "column": "event_timestamp",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "event_id",
+          "event_type",
+          "source",
+          "user_id",
+          "session_id",
+          "city",
+          "order_id",
+          "restaurant_id",
+          "page_name",
+          "action",
+          "platform",
+          "app_version",
+          "os_version",
+          "search_query",
+          "cuisine_filter",
+          "sort_by"
+        ]
+      },
+      "metricsSpec": [
+        { "type": "count", "name": "count" },
+        { "type": "doubleSum", "name": "total_revenue", "fieldName": "total_amount" },
+        { "type": "doubleSum", "name": "sum_delivery_time", "fieldName": "delivery_time_minutes" },
+        { "type": "thetaSketch", "name": "unique_users", "fieldName": "user_id", "size": 16384 },
+        { "type": "thetaSketch", "name": "unique_sessions", "fieldName": "session_id", "size": 16384 },
+        { "type": "HLLSketchBuild", "name": "unique_users_hll", "fieldName": "user_id", "lgK": 14 },
+        { "type": "doubleFirst", "name": "first_latitude", "fieldName": "latitude" },
+        { "type": "doubleFirst", "name": "first_longitude", "fieldName": "longitude" }
+      ],
+      "granularitySpec": {
+        "segmentGranularity": "HOUR",
+        "queryGranularity": "MINUTE",
+        "rollup": true
+      }
+    }
+  },
+  "suspended": false
+}

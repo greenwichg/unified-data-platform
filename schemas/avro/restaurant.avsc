@@ -1,0 +1,48 @@
+{
+  "type": "record",
+  "name": "Restaurant",
+  "namespace": "com.zomato.events",
+  "doc": "Restaurant data schema for the restaurant Kafka topic and data lake",
+  "fields": [
+    {"name": "restaurant_id", "type": "string", "doc": "Unique restaurant identifier"},
+    {"name": "name", "type": "string", "doc": "Restaurant display name"},
+    {"name": "owner_id", "type": "string", "doc": "Restaurant owner/operator ID"},
+    {"name": "description", "type": ["null", "string"], "default": null, "doc": "Restaurant description"},
+    {"name": "cuisine_types", "type": {"type": "array", "items": "string"}, "doc": "Types of cuisine offered"},
+    {"name": "address", "type": {
+      "type": "record",
+      "name": "RestaurantAddress",
+      "fields": [
+        {"name": "address_line", "type": "string"},
+        {"name": "area", "type": "string"},
+        {"name": "city", "type": "string"},
+        {"name": "state", "type": "string"},
+        {"name": "pincode", "type": "string"},
+        {"name": "latitude", "type": "double"},
+        {"name": "longitude", "type": "double"}
+      ]
+    }, "doc": "Restaurant physical address"},
+    {"name": "contact_phone", "type": "string", "doc": "Restaurant contact number"},
+    {"name": "is_active", "type": "boolean", "default": true, "doc": "Whether restaurant is currently accepting orders"},
+    {"name": "is_featured", "type": "boolean", "default": false, "doc": "Whether restaurant is featured/promoted"},
+    {"name": "avg_rating", "type": ["null", "float"], "default": null, "doc": "Average customer rating"},
+    {"name": "total_reviews", "type": "long", "default": 0, "doc": "Total number of reviews"},
+    {"name": "total_orders", "type": "long", "default": 0, "doc": "Total number of orders fulfilled"},
+    {"name": "avg_delivery_time_mins", "type": ["null", "int"], "default": null, "doc": "Average delivery time"},
+    {"name": "delivery_radius_km", "type": "double", "default": 10.0, "doc": "Maximum delivery radius"},
+    {"name": "opening_time", "type": "string", "doc": "Daily opening time (HH:MM)"},
+    {"name": "closing_time", "type": "string", "doc": "Daily closing time (HH:MM)"},
+    {"name": "price_range", "type": {
+      "type": "enum",
+      "name": "PriceRange",
+      "symbols": ["BUDGET", "MODERATE", "PREMIUM", "LUXURY"]
+    }, "doc": "Restaurant price range category"},
+    {"name": "commission_rate", "type": {"type": "bytes", "logicalType": "decimal", "precision": 5, "scale": 4}, "doc": "Zomato commission rate"},
+    {"name": "certifications", "type": {"type": "array", "items": "string"}, "default": [], "doc": "Food safety certifications (FSSAI, etc.)"},
+    {"name": "images", "type": {"type": "array", "items": "string"}, "default": [], "doc": "Restaurant image URLs"},
+    {"name": "created_at", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When restaurant was onboarded"},
+    {"name": "updated_at", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "Last profile update timestamp"},
+    {"name": "event_type", "type": "string", "doc": "CDC event type: INSERT, UPDATE, DELETE"},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When this event was generated"}
+  ]
+}

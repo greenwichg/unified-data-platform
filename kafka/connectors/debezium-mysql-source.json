@@ -1,0 +1,76 @@
+{
+  "name": "zomato-aurora-cdc-source",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "3",
+
+    "database.hostname": "${AURORA_HOST}",
+    "database.port": "3306",
+    "database.user": "${DB_USER}",
+    "database.password": "${DB_PASSWORD}",
+    "database.server.id": "1001",
+    "database.server.name": "zomato-aurora",
+
+    "database.include.list": "zomato",
+    "table.include.list": "zomato.orders,zomato.users,zomato.menu_items,zomato.promotions",
+    "column.exclude.list": "zomato.users.password_hash,zomato.users.email_raw,zomato.users.phone_raw",
+
+    "topic.prefix": "zomato-cdc",
+    "topic.creation.enable": "true",
+    "topic.creation.default.replication.factor": "3",
+    "topic.creation.default.partitions": "64",
+    "topic.creation.default.cleanup.policy": "delete",
+    "topic.creation.default.retention.ms": "604800000",
+
+    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP}",
+    "schema.history.internal.kafka.topic": "zomato-schema-history",
+    "schema.history.internal.kafka.topic.replication.factor": "3",
+    "schema.history.internal.store.only.captured.tables.ddl": "true",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "${SCHEMA_REGISTRY_URL}",
+    "key.converter.enhanced.avro.schema.support": "true",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "${SCHEMA_REGISTRY_URL}",
+    "value.converter.enhanced.avro.schema.support": "true",
+
+    "transforms": "unwrap,route,insertTimestamp",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "zomato-cdc\\.zomato\\.(.*)",
+    "transforms.route.replacement": "$1",
+    "transforms.insertTimestamp.type": "org.apache.kafka.connect.transforms.InsertField$Value",
+    "transforms.insertTimestamp.timestamp.field": "cdc_ingested_at",
+
+    "snapshot.mode": "initial",
+    "snapshot.locking.mode": "minimal",
+    "snapshot.fetch.size": "10240",
+    "snapshot.max.threads": "4",
+
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "connect",
+    "binary.handling.mode": "base64",
+    "tombstones.on.delete": "true",
+    "provide.transaction.metadata": "true",
+
+    "signal.data.collection": "zomato.debezium_signal",
+    "signal.enabled.channels": "source",
+    "incremental.snapshot.chunk.size": "10240",
+
+    "heartbeat.interval.ms": "10000",
+    "heartbeat.action.query": "INSERT INTO zomato.debezium_heartbeat (id, ts) VALUES (1, NOW()) ON DUPLICATE KEY UPDATE ts=NOW()",
+
+    "database.connectionTimeZone": "UTC",
+    "database.history.skip.unparseable.ddl": "true",
+
+    "errors.tolerance": "none",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "errors.deadletterqueue.topic.name": "zomato-cdc-dlq",
+    "errors.deadletterqueue.topic.replication.factor": "3",
+    "errors.deadletterqueue.context.headers.enable": "true"
+  }
+}

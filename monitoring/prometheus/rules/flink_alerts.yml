@@ -1,0 +1,193 @@
+groups:
+  - name: flink_job_health
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Job failures
+      # -----------------------------------------------------------------------
+      - alert: FlinkJobNotRunning
+        expr: >
+          flink_jobmanager_job_uptime == 0
+          or absent(flink_jobmanager_job_uptime{job_name=~"order-enrichment|delivery-tracking|restaurant-analytics|payment-reconciliation"})
+        for: 2m
+        labels:
+          severity: critical
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} is not running"
+          description: >-
+            The Flink job {{ $labels.job_name }} is not in RUNNING state.
+            Streaming pipeline is interrupted.
+          runbook_url: https://runbooks.zomato.internal/flink/job-not-running
+
+      - alert: FlinkJobRestartRateHigh
+        expr: rate(flink_jobmanager_job_numRestarts[15m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} is restarting frequently"
+          description: >-
+            Job {{ $labels.job_name }} restart rate is {{ $value | printf "%.2f" }}/sec
+            over 15 minutes. Frequent restarts indicate an underlying issue
+            (OOM, serialization error, external dependency failure).
+          runbook_url: https://runbooks.zomato.internal/flink/job-restarts
+
+      - alert: FlinkJobRestartsExhausted
+        expr: flink_jobmanager_job_numRestarts > 20
+        for: 1m
+        labels:
+          severity: critical
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} has restarted too many times"
+          description: >-
+            Job {{ $labels.job_name }} has restarted {{ $value }} times.
+            It may be approaching the restart strategy limit and could fail permanently.
+          runbook_url: https://runbooks.zomato.internal/flink/restarts-exhausted
+
+      # -----------------------------------------------------------------------
+      # Checkpoint failures
+      # -----------------------------------------------------------------------
+      - alert: FlinkCheckpointFailing
+        expr: >
+          increase(flink_jobmanager_job_numberOfFailedCheckpoints[10m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} checkpoint failures increasing"
+          description: >-
+            Job {{ $labels.job_name }} has had {{ $value }} failed checkpoints
+            in the last 10 minutes. State persistence is at risk.
+          runbook_url: https://runbooks.zomato.internal/flink/checkpoint-failures
+
+      - alert: FlinkCheckpointDurationHigh
+        expr: flink_jobmanager_job_lastCheckpointDuration > 180000
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} checkpoint duration is high"
+          description: >-
+            Last checkpoint for job {{ $labels.job_name }} took
+            {{ $value | humanizeDuration }}. Checkpoints taking longer than 3
+            minutes risk timing out and causing restarts.
+          runbook_url: https://runbooks.zomato.internal/flink/checkpoint-duration
+
+      - alert: FlinkNoCompletedCheckpoints
+        expr: >
+          flink_jobmanager_job_numberOfCompletedCheckpoints == 0
+          and flink_jobmanager_job_uptime > 600000
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink job {{ $labels.job_name }} has no completed checkpoints"
+          description: >-
+            Job {{ $labels.job_name }} has been running for over 10 minutes but
+            has zero completed checkpoints. Exactly-once processing is not
+            guaranteed.
+          runbook_url: https://runbooks.zomato.internal/flink/no-checkpoints
+
+      # -----------------------------------------------------------------------
+      # Backpressure
+      # -----------------------------------------------------------------------
+      - alert: FlinkBackpressureHigh
+        expr: >
+          avg by (job_name, task_name) (
+            flink_taskmanager_job_task_backPressuredTimeMsPerSecond
+          ) > 500
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink task {{ $labels.task_name }} backpressure is high"
+          description: >-
+            Task {{ $labels.task_name }} in job {{ $labels.job_name }} is
+            backpressured {{ $value | printf "%.0f" }}ms/sec (>500ms). This
+            slows the entire pipeline.
+          runbook_url: https://runbooks.zomato.internal/flink/backpressure
+
+      - alert: FlinkBackpressureCritical
+        expr: >
+          avg by (job_name, task_name) (
+            flink_taskmanager_job_task_backPressuredTimeMsPerSecond
+          ) > 900
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink task {{ $labels.task_name }} backpressure is critical"
+          description: >-
+            Task {{ $labels.task_name }} in job {{ $labels.job_name }} is
+            backpressured {{ $value | printf "%.0f" }}ms/sec (>900ms). The
+            operator is almost fully saturated.
+          runbook_url: https://runbooks.zomato.internal/flink/backpressure-critical
+
+  - name: flink_taskmanager_resources
+    interval: 30s
+    rules:
+      - alert: FlinkTaskManagerMemoryHigh
+        expr: >
+          flink_taskmanager_Status_JVM_Memory_Heap_Used
+          / flink_taskmanager_Status_JVM_Memory_Heap_Max > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink TaskManager {{ $labels.tm_id }} heap usage above 90%"
+          description: >-
+            TaskManager {{ $labels.tm_id }} heap utilization is
+            {{ $value | printf "%.1f" | humanizePercentage }}. Risk of OOM and
+            task failures.
+          runbook_url: https://runbooks.zomato.internal/flink/tm-memory
+
+      - alert: FlinkTaskManagerGCPressure
+        expr: >
+          rate(flink_taskmanager_Status_JVM_GarbageCollector_G1_Old_Generation_Time[5m]) > 200
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink TaskManager {{ $labels.tm_id }} excessive GC"
+          description: >-
+            G1 Old Gen GC time rate is {{ $value | printf "%.0f" }}ms/sec on
+            TaskManager {{ $labels.tm_id }}. Heavy GC pressure degrades
+            processing throughput.
+          runbook_url: https://runbooks.zomato.internal/flink/gc-pressure
+
+      - alert: FlinkRecordsLagBehind
+        expr: >
+          rate(flink_taskmanager_job_task_operator_numRecordsIn[5m])
+          < 0.05 * avg_over_time(rate(flink_taskmanager_job_task_operator_numRecordsIn[5m])[1h:5m])
+        for: 15m
+        labels:
+          severity: warning
+          team: data-platform
+          service: flink
+        annotations:
+          summary: "Flink operator {{ $labels.operator_name }} throughput dropped"
+          description: >-
+            Inbound record rate for operator {{ $labels.operator_name }} in job
+            {{ $labels.job_name }} dropped below 5% of its hourly average.
+            Upstream source may be empty or pipeline is stalled.
+          runbook_url: https://runbooks.zomato.internal/flink/throughput-drop

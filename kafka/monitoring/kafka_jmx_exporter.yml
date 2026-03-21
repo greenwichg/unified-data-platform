@@ -1,0 +1,191 @@
+# ============================================================================
+# Zomato Data Platform - Kafka JMX Exporter Configuration
+# Prometheus JMX Exporter for Kafka broker, producer, and consumer metrics.
+# Deployed as a Java agent on all Kafka broker instances.
+# Port: 9404
+# ============================================================================
+
+hostPort: localhost:9999
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Allowlist for performance - only scrape metrics we care about
+whitelistObjectNames:
+  - "kafka.server:*"
+  - "kafka.controller:*"
+  - "kafka.network:*"
+  - "kafka.log:*"
+  - "kafka.cluster:*"
+  - "java.lang:*"
+
+blacklistObjectNames:
+  - "kafka.server:type=app-info,*"
+  - "kafka.server:type=KafkaRequestHandlerPool,*"
+
+rules:
+  # ----- Broker Topic Metrics -----
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+), topic=(.+)><>Count"
+    name: "kafka_server_brokertopicmetrics_$1_total"
+    type: COUNTER
+    labels:
+      topic: "$2"
+
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+), topic=(.+)><>OneMinuteRate"
+    name: "kafka_server_brokertopicmetrics_$1_rate"
+    type: GAUGE
+    labels:
+      topic: "$2"
+
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+)><>Count"
+    name: "kafka_server_brokertopicmetrics_$1_total"
+    type: COUNTER
+
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+)><>OneMinuteRate"
+    name: "kafka_server_brokertopicmetrics_$1_rate"
+    type: GAUGE
+
+  # ----- Request Metrics -----
+  - pattern: "kafka.network<type=RequestMetrics, name=RequestsPerSec, request=(.+), version=(.+)><>Count"
+    name: "kafka_network_requestmetrics_requests_total"
+    type: COUNTER
+    labels:
+      request: "$1"
+      version: "$2"
+
+  - pattern: "kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(.+)><>Mean"
+    name: "kafka_network_requestmetrics_totaltimems_mean"
+    type: GAUGE
+    labels:
+      request: "$1"
+
+  - pattern: "kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(.+)><>99thPercentile"
+    name: "kafka_network_requestmetrics_totaltimems_99p"
+    type: GAUGE
+    labels:
+      request: "$1"
+
+  # ----- Request Handler Pool -----
+  - pattern: "kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>OneMinuteRate"
+    name: "kafka_server_request_handler_avg_idle_percent"
+    type: GAUGE
+
+  # ----- Replica Manager -----
+  - pattern: "kafka.server<type=ReplicaManager, name=(.+)><>Value"
+    name: "kafka_server_replicamanager_$1"
+    type: GAUGE
+
+  # ----- Partition Counts -----
+  - pattern: "kafka.server<type=ReplicaManager, name=PartitionCount><>Value"
+    name: "kafka_server_replicamanager_partitioncount"
+    type: GAUGE
+
+  - pattern: "kafka.server<type=ReplicaManager, name=LeaderCount><>Value"
+    name: "kafka_server_replicamanager_leadercount"
+    type: GAUGE
+
+  - pattern: "kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value"
+    name: "kafka_server_replicamanager_underreplicatedpartitions"
+    type: GAUGE
+
+  - pattern: "kafka.server<type=ReplicaManager, name=UnderMinIsrPartitionCount><>Value"
+    name: "kafka_server_replicamanager_underminisrpartitioncount"
+    type: GAUGE
+
+  # ----- Controller Metrics -----
+  - pattern: "kafka.controller<type=KafkaController, name=(.+)><>Value"
+    name: "kafka_controller_kafkacontroller_$1"
+    type: GAUGE
+
+  - pattern: "kafka.controller<type=ControllerStats, name=(.+)><>Count"
+    name: "kafka_controller_controllerstats_$1_total"
+    type: COUNTER
+
+  - pattern: "kafka.controller<type=ControllerStats, name=(.+)><>OneMinuteRate"
+    name: "kafka_controller_controllerstats_$1_rate"
+    type: GAUGE
+
+  # ----- Log Metrics -----
+  - pattern: "kafka.log<type=LogFlushStats, name=LogFlushRateAndTimeMs><>Count"
+    name: "kafka_log_logflushstats_logflush_total"
+    type: COUNTER
+
+  - pattern: "kafka.log<type=LogFlushStats, name=LogFlushRateAndTimeMs><>Mean"
+    name: "kafka_log_logflushstats_logflushtimems_mean"
+    type: GAUGE
+
+  - pattern: "kafka.log<type=Log, name=Size, topic=(.+), partition=(.+)><>Value"
+    name: "kafka_log_log_size"
+    type: GAUGE
+    labels:
+      topic: "$1"
+      partition: "$2"
+
+  - pattern: "kafka.log<type=Log, name=NumLogSegments, topic=(.+), partition=(.+)><>Value"
+    name: "kafka_log_log_numlogsegments"
+    type: GAUGE
+    labels:
+      topic: "$1"
+      partition: "$2"
+
+  # ----- Network Processor Metrics -----
+  - pattern: "kafka.network<type=SocketServer, name=NetworkProcessorAvgIdlePercent><>Value"
+    name: "kafka_network_socketserver_networkprocessor_avgidle_percent"
+    type: GAUGE
+
+  - pattern: "kafka.network<type=RequestChannel, name=RequestQueueSize><>Value"
+    name: "kafka_network_requestchannel_requestqueuesize"
+    type: GAUGE
+
+  - pattern: "kafka.network<type=RequestChannel, name=ResponseQueueSize><>Value"
+    name: "kafka_network_requestchannel_responsequeusize"
+    type: GAUGE
+
+  # ----- Consumer Group Metrics -----
+  - pattern: "kafka.server<type=GroupMetadataManager, name=NumGroups><>Value"
+    name: "kafka_server_groupmetadatamanager_numgroups"
+    type: GAUGE
+
+  - pattern: "kafka.server<type=GroupMetadataManager, name=NumGroupsStable><>Value"
+    name: "kafka_server_groupmetadatamanager_numgroupsstable"
+    type: GAUGE
+
+  # ----- JVM Metrics -----
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>used"
+    name: "jvm_memory_heap_used_bytes"
+    type: GAUGE
+
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>max"
+    name: "jvm_memory_heap_max_bytes"
+    type: GAUGE
+
+  - pattern: "java.lang<type=Memory><NonHeapMemoryUsage>used"
+    name: "jvm_memory_nonheap_used_bytes"
+    type: GAUGE
+
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionCount"
+    name: "jvm_gc_collection_count_total"
+    type: COUNTER
+    labels:
+      gc: "$1"
+
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>CollectionTime"
+    name: "jvm_gc_collection_time_ms_total"
+    type: COUNTER
+    labels:
+      gc: "$1"
+
+  - pattern: "java.lang<type=Threading><>ThreadCount"
+    name: "jvm_threads_current"
+    type: GAUGE
+
+  - pattern: "java.lang<type=OperatingSystem><>SystemCpuLoad"
+    name: "jvm_os_system_cpu_load"
+    type: GAUGE
+
+  - pattern: "java.lang<type=OperatingSystem><>ProcessCpuLoad"
+    name: "jvm_os_process_cpu_load"
+    type: GAUGE
+
+  - pattern: "java.lang<type=OperatingSystem><>OpenFileDescriptorCount"
+    name: "jvm_os_open_file_descriptors"
+    type: GAUGE

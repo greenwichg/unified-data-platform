@@ -1,0 +1,221 @@
+groups:
+  - name: druid_ingestion
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Ingestion lag and failures
+      # -----------------------------------------------------------------------
+      - alert: DruidIngestionLagHigh
+        expr: >
+          druid_realtime_ingest_lag_milliseconds > 60000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid ingestion lag high for datasource {{ $labels.dataSource }}"
+          description: >-
+            Real-time ingestion lag for datasource {{ $labels.dataSource }} is
+            {{ $value | humanizeDuration }}. Events are arriving late in the
+            OLAP store.
+          runbook_url: https://runbooks.zomato.internal/druid/ingestion-lag
+
+      - alert: DruidIngestionLagCritical
+        expr: >
+          druid_realtime_ingest_lag_milliseconds > 300000
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid ingestion lag critical for datasource {{ $labels.dataSource }}"
+          description: >-
+            Real-time ingestion lag for {{ $labels.dataSource }} exceeds 5
+            minutes. Real-time dashboards are stale.
+          runbook_url: https://runbooks.zomato.internal/druid/ingestion-lag-critical
+
+      - alert: DruidIngestionTaskFailures
+        expr: >
+          increase(druid_indexing_task_failed_count[15m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid ingestion tasks failing for {{ $labels.dataSource }}"
+          description: >-
+            {{ $value }} ingestion tasks have failed for datasource
+            {{ $labels.dataSource }} in the last 15 minutes.
+          runbook_url: https://runbooks.zomato.internal/druid/task-failures
+
+      - alert: DruidSupervisorNotHealthy
+        expr: druid_supervisor_is_healthy == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid supervisor {{ $labels.supervisor }} is unhealthy"
+          description: >-
+            Supervisor {{ $labels.supervisor }} for datasource
+            {{ $labels.dataSource }} is not healthy. Kafka ingestion may be
+            stopped.
+          runbook_url: https://runbooks.zomato.internal/druid/supervisor-unhealthy
+
+      - alert: DruidPendingTasks
+        expr: druid_indexing_pending_task_count > 10
+        for: 15m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid has {{ $value }} pending ingestion tasks"
+          description: >-
+            {{ $value }} tasks are pending on the overlord. Middle managers
+            may be at capacity.
+          runbook_url: https://runbooks.zomato.internal/druid/pending-tasks
+
+  - name: druid_query_performance
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Query latency
+      # -----------------------------------------------------------------------
+      - alert: DruidQueryLatencyP99High
+        expr: >
+          histogram_quantile(0.99,
+            rate(druid_broker_query_time_bucket[5m])
+          ) > 5000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid p99 query latency exceeds 5s for {{ $labels.dataSource }}"
+          description: >-
+            p99 query latency for datasource {{ $labels.dataSource }} is
+            {{ $value | printf "%.0f" }}ms. Dashboard responsiveness is degraded.
+          runbook_url: https://runbooks.zomato.internal/druid/query-latency
+
+      - alert: DruidQueryLatencyP99Critical
+        expr: >
+          histogram_quantile(0.99,
+            rate(druid_broker_query_time_bucket[5m])
+          ) > 15000
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid p99 query latency exceeds 15s for {{ $labels.dataSource }}"
+          description: >-
+            p99 query latency for {{ $labels.dataSource }} is {{ $value | printf "%.0f" }}ms.
+            Queries are timing out.
+          runbook_url: https://runbooks.zomato.internal/druid/query-latency-critical
+
+      - alert: DruidQueryFailureRate
+        expr: >
+          rate(druid_broker_query_failed_count[5m])
+          / (rate(druid_broker_query_success_count[5m]) + rate(druid_broker_query_failed_count[5m]) + 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid query failure rate above 5%"
+          description: >-
+            {{ $value | printf "%.1f" | humanizePercentage }} of broker queries
+            are failing. Check broker and historical logs.
+          runbook_url: https://runbooks.zomato.internal/druid/query-failures
+
+  - name: druid_cluster_health
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # Segment availability
+      # -----------------------------------------------------------------------
+      - alert: DruidSegmentsUnavailable
+        expr: druid_coordinator_segment_unavailable_count > 0
+        for: 10m
+        labels:
+          severity: critical
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid has {{ $value }} unavailable segments"
+          description: >-
+            {{ $value }} segments are unavailable for datasource
+            {{ $labels.dataSource }}. Query results may be incomplete.
+          runbook_url: https://runbooks.zomato.internal/druid/segments-unavailable
+
+      - alert: DruidSegmentsUnderReplicated
+        expr: druid_coordinator_segment_under_replicated_count > 0
+        for: 30m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid has {{ $value }} under-replicated segments"
+          description: >-
+            {{ $value }} segments are under-replicated for datasource
+            {{ $labels.dataSource }}. A historical node loss could cause data
+            unavailability.
+          runbook_url: https://runbooks.zomato.internal/druid/under-replicated
+
+      # -----------------------------------------------------------------------
+      # Node health
+      # -----------------------------------------------------------------------
+      - alert: DruidHistoricalDown
+        expr: up{job="druid-historical"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid historical node {{ $labels.instance }} is down"
+          description: >-
+            Historical node {{ $labels.instance }} in cluster
+            {{ $labels.druid_cluster }} is unreachable. Segment serving
+            capacity is reduced.
+          runbook_url: https://runbooks.zomato.internal/druid/historical-down
+
+      - alert: DruidCoordinatorDown
+        expr: up{job="druid-coordinator"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid coordinator is down"
+          description: >-
+            Druid coordinator is unreachable. Segment balancing and loading
+            will not function.
+          runbook_url: https://runbooks.zomato.internal/druid/coordinator-down
+
+      - alert: DruidHistoricalDiskUsageHigh
+        expr: >
+          druid_historical_segment_cache_bytes_used
+          / druid_historical_segment_cache_max_bytes > 0.90
+        for: 30m
+        labels:
+          severity: warning
+          team: data-platform
+          service: druid
+        annotations:
+          summary: "Druid historical {{ $labels.instance }} disk cache above 90%"
+          description: >-
+            Segment cache utilization on historical {{ $labels.instance }} is
+            {{ $value | printf "%.1f" | humanizePercentage }}. New segments may
+            not be loadable.
+          runbook_url: https://runbooks.zomato.internal/druid/historical-disk

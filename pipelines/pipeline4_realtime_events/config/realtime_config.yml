@@ -1,0 +1,223 @@
+# ============================================================================
+# Pipeline 4 - Realtime Events Configuration
+# App Events -> Kafka -> Flink -> S3 (ORC) + Druid
+# Druid handles: 20B events/week, 8M queries/week, millisecond response
+# ============================================================================
+
+pipeline:
+  name: pipeline4_realtime_events
+  description: "Real-time app event processing via Flink to S3 and Druid"
+  mode: continuous
+  owner: data-platform-team
+  alert_channel: "#data-pipeline-alerts"
+  sla_max_lag_minutes: 5
+
+# ----- Kafka Source Clusters -----
+kafka:
+  # Primary cluster: app events ingestion
+  cluster_1:
+    bootstrap_servers: ${KAFKA_BOOTSTRAP:kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092}
+    description: "Primary Kafka cluster for app event ingestion"
+    topics:
+      - name: orders
+        partitions: 64
+        consumer_group: flink-realtime-orders
+      - name: users
+        partitions: 64
+        consumer_group: flink-realtime-users
+      - name: menu
+        partitions: 64
+        consumer_group: flink-realtime-menu
+      - name: promo
+        partitions: 64
+        consumer_group: flink-realtime-promo
+
+  # Secondary cluster: aggregated events to Druid
+  cluster_2:
+    bootstrap_servers: ${KAFKA_BOOTSTRAP_2:kafka-rt1.zomato-data.internal:9093,kafka-rt2.zomato-data.internal:9093,kafka-rt3.zomato-data.internal:9093}
+    description: "Secondary Kafka cluster for real-time events to Druid"
+    topics:
+      - name: druid-ingestion-events
+        partitions: 64
+        consumer_group: druid-realtime-ingestion
+      - name: order-spike-alerts
+        partitions: 8
+        consumer_group: alerting-consumer
+
+  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+
+  consumer_config:
+    auto_offset_reset: latest
+    max_poll_records: 10000
+    session_timeout_ms: 30000
+    heartbeat_interval_ms: 10000
+    fetch_min_bytes: 1048576
+    fetch_max_wait_ms: 500
+    max_partition_fetch_bytes: 10485760
+
+  producer_config:
+    acks: all
+    retries: 5
+    batch_size: 65536
+    linger_ms: 10
+    buffer_memory: 67108864
+    compression_type: lz4
+    max_in_flight_requests: 5
+    enable_idempotence: true
+
+# ----- Flink Processing -----
+flink:
+  job_name: zomato-realtime-events-processor
+  parallelism: 64
+  max_parallelism: 128
+
+  checkpointing:
+    interval_ms: 30000
+    timeout_ms: 120000
+    min_pause_ms: 15000
+    max_concurrent: 1
+    mode: EXACTLY_ONCE
+    externalized: RETAIN_ON_CANCELLATION
+    type: s3
+    bucket: ${S3_CHECKPOINTS_BUCKET:zomato-data-platform-prod-checkpoints}
+    prefix: "pipeline4-realtime/flink-checkpoints"
+
+  state_backend:
+    type: rocksdb
+    incremental: true
+    timer_service_type: rocksdb
+    block_cache_size_mb: 256
+    write_buffer_size_mb: 128
+    max_write_buffers: 4
+
+  restart_strategy:
+    type: exponential-delay
+    initial_backoff_seconds: 5
+    max_backoff_seconds: 300
+    backoff_multiplier: 2.0
+    reset_backoff_threshold_seconds: 600
+    jitter_factor: 0.1
+
+  resource:
+    jobmanager_memory_mb: 8192
+    jobmanager_cpu: 2
+    taskmanager_memory_mb: 16384
+    taskmanager_cpu: 4
+    taskmanager_slots: 4
+    taskmanager_count: 16
+
+  # Complex Event Processing windows
+  cep:
+    order_spike_window: "PT5M"
+    order_spike_threshold: 500
+    session_gap_duration: "PT30M"
+    late_event_tolerance: "PT10S"
+
+# ----- Sink: S3 (ORC) -----
+s3_sink:
+  bucket: ${S3_PROCESSED_BUCKET:zomato-data-platform-prod-processed-data-lake}
+  prefix: "pipeline4-realtime/orc"
+  partition_format: "event_type={type}/year=%Y/month=%m/day=%d/hour=%H"
+  file_format: orc
+  compression: snappy
+  rolling_policy:
+    max_part_size_mb: 256
+    rollover_interval_minutes: 15
+    inactivity_interval_minutes: 5
+  orc_settings:
+    stripe_size_mb: 64
+    buffer_size_kb: 256
+    row_index_stride: 10000
+
+# ----- Sink: Druid Ingestion -----
+druid:
+  coordinator_url: ${DRUID_COORDINATOR_URL:http://druid-coordinator.zomato-data.internal:8081}
+  broker_url: ${DRUID_BROKER_URL:http://druid-broker.zomato-data.internal:8082}
+  router_url: ${DRUID_ROUTER_URL:http://druid-router.zomato-data.internal:8888}
+
+  datasources:
+    - name: zomato_realtime_events
+      kafka_topic: druid-ingestion-events
+      segment_granularity: HOUR
+      query_granularity: MINUTE
+      task_count: 8
+      replicas: 2
+      task_duration: PT1H
+
+    - name: zomato_orders
+      kafka_topic: orders
+      segment_granularity: HOUR
+      query_granularity: MINUTE
+      task_count: 16
+      replicas: 2
+      task_duration: PT1H
+
+  compaction:
+    enabled: true
+    skip_offset_from_latest: PT2H
+    target_segment_granularity: DAY
+    target_rows_per_segment: 5000000
+
+# ----- EC2 Auto-Scaling Kafka Consumer (Druid feeder) -----
+ec2_consumer:
+  description: "Auto-scaling EC2 Kafka consumer fleet that feeds Druid"
+  ami_id: ${KAFKA_CONSUMER_AMI:ami-0abcdef1234567890}
+  instance_type: c6g.xlarge
+  key_pair: zomato-data-platform-prod
+  security_group_ids:
+    - ${SG_KAFKA_CONSUMER}
+  subnet_ids:
+    - ${SUBNET_PRIVATE_1A}
+    - ${SUBNET_PRIVATE_1B}
+    - ${SUBNET_PRIVATE_1C}
+
+  autoscaling:
+    min_instances: 4
+    max_instances: 24
+    desired_instances: 8
+    health_check_grace_period: 120
+    cooldown_seconds: 180
+    scaling_policies:
+      - metric: kafka_consumer_lag
+        threshold: 500000
+        scaling_adjustment: 4
+        evaluation_periods: 2
+        period_seconds: 60
+      - metric: cpu_utilization
+        threshold: 70
+        scaling_adjustment: 2
+        evaluation_periods: 3
+        period_seconds: 60
+
+  consumer_config:
+    group_id: ec2-druid-feeder
+    topics:
+      - orders
+      - users
+      - menu
+      - promo
+    target_topic: druid-ingestion-events
+    batch_size: 5000
+    flush_interval_ms: 1000
+
+# ----- Monitoring -----
+monitoring:
+  enable_metrics: true
+  metrics_reporter: prometheus
+  prometheus_port: 9249
+  cloudwatch_namespace: zomato-data-platform/pipeline4-realtime
+
+  alerts:
+    consumer_lag_threshold: 100000
+    processing_latency_p99_ms: 5000
+    error_rate_threshold: 0.001
+    druid_ingestion_lag_minutes: 5
+
+  dashboards:
+    grafana_folder: "Zomato Pipeline 4 - Realtime Events"
+    panels:
+      - events_per_second
+      - consumer_lag_by_topic
+      - flink_checkpoint_duration
+      - druid_ingestion_rate
+      - end_to_end_latency_p99

@@ -1,0 +1,248 @@
+groups:
+  - name: pipeline_data_freshness
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # End-to-end data freshness (custom exporter metrics)
+      # -----------------------------------------------------------------------
+      - alert: OrderPipelineDataStale
+        expr: >
+          time() - pipeline_last_event_timestamp_seconds{pipeline="order_events"} > 300
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: pipeline
+          pipeline: order-events
+        annotations:
+          summary: "Order events pipeline data is stale"
+          description: >-
+            No new order events have been processed in the last
+            {{ $value | printf "%.0f" }}s. The end-to-end pipeline from Kafka
+            through Flink to Druid may be broken.
+          runbook_url: https://runbooks.zomato.internal/pipeline/order-events-stale
+
+      - alert: DeliveryTrackingDataStale
+        expr: >
+          time() - pipeline_last_event_timestamp_seconds{pipeline="delivery_tracking"} > 180
+        for: 3m
+        labels:
+          severity: critical
+          team: data-platform
+          service: pipeline
+          pipeline: delivery-tracking
+        annotations:
+          summary: "Delivery tracking pipeline data is stale"
+          description: >-
+            No new delivery tracking events processed in {{ $value | printf "%.0f" }}s.
+            Live delivery maps and ETAs will be inaccurate.
+          runbook_url: https://runbooks.zomato.internal/pipeline/delivery-tracking-stale
+
+      - alert: RestaurantAnalyticsDataStale
+        expr: >
+          time() - pipeline_last_event_timestamp_seconds{pipeline="restaurant_analytics"} > 600
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: pipeline
+          pipeline: restaurant-analytics
+        annotations:
+          summary: "Restaurant analytics pipeline data is stale"
+          description: >-
+            Restaurant analytics data has not been updated for
+            {{ $value | printf "%.0f" }}s. Partner dashboards may show outdated data.
+          runbook_url: https://runbooks.zomato.internal/pipeline/restaurant-analytics-stale
+
+      - alert: PaymentReconciliationDataStale
+        expr: >
+          time() - pipeline_last_event_timestamp_seconds{pipeline="payment_reconciliation"} > 900
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: pipeline
+          pipeline: payment-reconciliation
+        annotations:
+          summary: "Payment reconciliation pipeline data is stale"
+          description: >-
+            Payment reconciliation has not processed new events in
+            {{ $value | printf "%.0f" }}s.
+          runbook_url: https://runbooks.zomato.internal/pipeline/payment-recon-stale
+
+  - name: pipeline_throughput
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # Throughput drops
+      # -----------------------------------------------------------------------
+      - alert: PipelineThroughputDrop
+        expr: >
+          rate(pipeline_events_processed_total[5m])
+          < 0.1 * avg_over_time(rate(pipeline_events_processed_total[5m])[1h:5m])
+        for: 15m
+        labels:
+          severity: warning
+          team: data-platform
+          service: pipeline
+        annotations:
+          summary: "Pipeline {{ $labels.pipeline }} throughput dropped >90%"
+          description: >-
+            Event processing rate for pipeline {{ $labels.pipeline }} has
+            dropped to {{ $value | printf "%.1f" }} events/sec, which is below
+            10% of the hourly average. Upstream producers or processing jobs
+            may have failed.
+          runbook_url: https://runbooks.zomato.internal/pipeline/throughput-drop
+
+      - alert: PipelineThroughputZero
+        expr: >
+          rate(pipeline_events_processed_total[10m]) == 0
+          and pipeline_events_processed_total > 0
+        for: 10m
+        labels:
+          severity: critical
+          team: data-platform
+          service: pipeline
+        annotations:
+          summary: "Pipeline {{ $labels.pipeline }} has zero throughput"
+          description: >-
+            Pipeline {{ $labels.pipeline }} has processed zero events in the
+            last 10 minutes. The pipeline is completely stalled.
+          runbook_url: https://runbooks.zomato.internal/pipeline/zero-throughput
+
+      # -----------------------------------------------------------------------
+      # Error rates
+      # -----------------------------------------------------------------------
+      - alert: PipelineErrorRateHigh
+        expr: >
+          rate(pipeline_events_errors_total[5m])
+          / (rate(pipeline_events_processed_total[5m]) + 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: pipeline
+        annotations:
+          summary: "Pipeline {{ $labels.pipeline }} error rate above 5%"
+          description: >-
+            Error rate for pipeline {{ $labels.pipeline }} is
+            {{ $value | printf "%.1f" | humanizePercentage }}. Check DLQ and
+            error logs.
+          runbook_url: https://runbooks.zomato.internal/pipeline/error-rate
+
+      - alert: PipelineErrorRateCritical
+        expr: >
+          rate(pipeline_events_errors_total[5m])
+          / (rate(pipeline_events_processed_total[5m]) + 0.001) > 0.20
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: pipeline
+        annotations:
+          summary: "Pipeline {{ $labels.pipeline }} error rate above 20%"
+          description: >-
+            Error rate for {{ $labels.pipeline }} is critically high at
+            {{ $value | printf "%.1f" | humanizePercentage }}. Data quality
+            is severely impacted.
+          runbook_url: https://runbooks.zomato.internal/pipeline/error-rate-critical
+
+      - alert: PipelineDLQGrowing
+        expr: >
+          delta(pipeline_dlq_message_count[30m]) > 1000
+        for: 15m
+        labels:
+          severity: warning
+          team: data-platform
+          service: pipeline
+        annotations:
+          summary: "Pipeline {{ $labels.pipeline }} DLQ is growing rapidly"
+          description: >-
+            Dead letter queue for pipeline {{ $labels.pipeline }} has grown by
+            {{ $value | humanize }} messages in 30 minutes. Systematic processing
+            failures are occurring.
+          runbook_url: https://runbooks.zomato.internal/pipeline/dlq-growing
+
+  - name: airflow_pipeline_health
+    interval: 60s
+    rules:
+      # -----------------------------------------------------------------------
+      # Airflow DAG health
+      # -----------------------------------------------------------------------
+      - alert: AirflowDAGFailure
+        expr: >
+          airflow_dag_run_failed_count > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: data-platform
+          service: airflow
+        annotations:
+          summary: "Airflow DAG {{ $labels.dag_id }} has failed runs"
+          description: >-
+            DAG {{ $labels.dag_id }} has {{ $value }} failed runs. Check Airflow
+            UI for task-level failure details.
+          runbook_url: https://runbooks.zomato.internal/airflow/dag-failure
+
+      - alert: AirflowSchedulerHeartbeatMissing
+        expr: >
+          time() - airflow_scheduler_heartbeat_timestamp > 60
+        for: 2m
+        labels:
+          severity: critical
+          team: data-platform
+          service: airflow
+        annotations:
+          summary: "Airflow scheduler heartbeat missing"
+          description: >-
+            The Airflow scheduler has not sent a heartbeat in
+            {{ $value | printf "%.0f" }}s. No new DAG runs will be triggered.
+          runbook_url: https://runbooks.zomato.internal/airflow/scheduler-down
+
+      - alert: AirflowTaskQueueBacklog
+        expr: airflow_pool_queued_slots > 100
+        for: 15m
+        labels:
+          severity: warning
+          team: data-platform
+          service: airflow
+        annotations:
+          summary: "Airflow task queue backlog is high"
+          description: >-
+            {{ $value }} tasks are queued in pool {{ $labels.pool }}. Workers
+            may be overloaded or stuck.
+          runbook_url: https://runbooks.zomato.internal/airflow/task-queue
+
+  - name: dynamodb_streams_health
+    interval: 60s
+    rules:
+      - alert: DynamoDBStreamIteratorAgeHigh
+        expr: >
+          dynamodb_streams_iterator_age_milliseconds > 300000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: dynamodb-streams
+        annotations:
+          summary: "DynamoDB stream iterator age high for {{ $labels.table_name }}"
+          description: >-
+            Stream iterator age for table {{ $labels.table_name }} is
+            {{ $value | humanizeDuration }}. CDC events are being processed
+            with significant delay.
+          runbook_url: https://runbooks.zomato.internal/dynamodb/stream-lag
+
+      - alert: DynamoDBStreamProcessingErrors
+        expr: >
+          rate(dynamodb_streams_processing_errors_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: dynamodb-streams
+        annotations:
+          summary: "DynamoDB stream processing errors for {{ $labels.table_name }}"
+          description: >-
+            Error rate processing DynamoDB streams for table
+            {{ $labels.table_name }} is {{ $value | printf "%.2f" }}/sec.
+          runbook_url: https://runbooks.zomato.internal/dynamodb/stream-errors

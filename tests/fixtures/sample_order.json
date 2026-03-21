@@ -1,0 +1,38 @@
+{
+  "order_id": "ord_a1b2c3d4e5f6",
+  "user_id": "usr_00112233",
+  "restaurant_id": "rest_aabbccdd",
+  "status": "PLACED",
+  "items": [
+    {
+      "item_id": "item_001",
+      "name": "Chicken Biryani",
+      "quantity": 2,
+      "unit_price": 350.00,
+      "customizations": ["Extra Spicy", "No Onion"]
+    },
+    {
+      "item_id": "item_002",
+      "name": "Raita",
+      "quantity": 1,
+      "unit_price": 50.00,
+      "customizations": []
+    }
+  ],
+  "subtotal": 750.00,
+  "tax": 37.50,
+  "delivery_fee": 30.00,
+  "total_amount": 817.50,
+  "payment_method": "UPI",
+  "delivery_address": {
+    "latitude": 19.0760,
+    "longitude": 72.8777,
+    "address_line": "42, Marine Drive, Churchgate",
+    "city": "Mumbai",
+    "pincode": "400020"
+  },
+  "created_at": "2024-06-15T14:30:00.000Z",
+  "updated_at": "2024-06-15T14:30:00.000Z",
+  "event_type": "INSERT",
+  "source_pipeline": "pipeline4"
+}

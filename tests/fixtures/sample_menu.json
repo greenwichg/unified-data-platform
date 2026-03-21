@@ -1,0 +1,17 @@
+{
+  "item_id": "item_98a7b6c5",
+  "restaurant_id": "rest_aabbccdd",
+  "name": "Paneer Tikka Masala",
+  "description": "Creamy tomato gravy with marinated paneer cubes, served with naan",
+  "category": "Main Course",
+  "cuisine_type": "North Indian",
+  "price": 280.00,
+  "is_vegetarian": true,
+  "is_available": true,
+  "preparation_time_mins": 20,
+  "rating": 4.3,
+  "total_orders": 8540,
+  "image_url": "https://img.zomato.com/photos/items/paneer_tikka_masala_98a7b6c5.jpg",
+  "event_type": "INSERT",
+  "event_timestamp": "2024-06-15T10:00:00.000Z"
+}

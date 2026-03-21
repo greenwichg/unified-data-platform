@@ -1,0 +1,294 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "End-to-end pipeline health for Zomato Data Platform",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "icon": "external link", "tags": ["kafka"], "title": "Kafka Overview", "type": "dashboards" },
+    { "icon": "external link", "tags": ["flink"], "title": "Flink Jobs", "type": "dashboards" },
+    { "icon": "external link", "tags": ["trino"], "title": "Trino Clusters", "type": "dashboards" },
+    { "icon": "external link", "tags": ["druid"], "title": "Druid Ingestion", "type": "dashboards" }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Data Freshness",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 300 } ] },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Order Events Freshness",
+      "type": "stat",
+      "targets": [
+        { "expr": "time() - pipeline_last_event_timestamp_seconds{pipeline=\"order_events\"}", "legendFormat": "Age", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 180 } ] },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Delivery Tracking Freshness",
+      "type": "stat",
+      "targets": [
+        { "expr": "time() - pipeline_last_event_timestamp_seconds{pipeline=\"delivery_tracking\"}", "legendFormat": "Age", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 300 }, { "color": "red", "value": 600 } ] },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Restaurant Analytics Freshness",
+      "type": "stat",
+      "targets": [
+        { "expr": "time() - pipeline_last_event_timestamp_seconds{pipeline=\"restaurant_analytics\"}", "legendFormat": "Age", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 600 }, { "color": "red", "value": 900 } ] },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Payment Recon Freshness",
+      "type": "stat",
+      "targets": [
+        { "expr": "time() - pipeline_last_event_timestamp_seconds{pipeline=\"payment_reconciliation\"}", "legendFormat": "Age", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "Throughput",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 7 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "right", "sortBy": "Mean", "sortDesc": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Events Processed Per Second (by pipeline)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(pipeline_events_processed_total[5m])", "legendFormat": "{{ pipeline }}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 6,
+      "title": "Error Rate Per Pipeline",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(pipeline_events_errors_total[5m])", "legendFormat": "{{ pipeline }}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "percentunit" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 7,
+      "title": "Error Rate Percentage",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(pipeline_events_errors_total[5m]) / (rate(pipeline_events_processed_total[5m]) + 0.001)", "legendFormat": "{{ pipeline }}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 102,
+      "title": "Dead Letter Queue",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 8,
+      "title": "DLQ Message Count",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "pipeline_dlq_message_count", "legendFormat": "{{ pipeline }}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 9,
+      "title": "DLQ Growth Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(pipeline_dlq_message_count[5m])", "legendFormat": "{{ pipeline }}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 103,
+      "title": "Service Dependencies",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [ { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 33 },
+      "id": 10,
+      "options": { "colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Service Status Overview",
+      "type": "stat",
+      "targets": [
+        { "expr": "min(up{job=\"kafka\"})", "legendFormat": "Kafka", "refId": "A" },
+        { "expr": "up{job=\"flink-jobmanager\"}", "legendFormat": "Flink JobManager", "refId": "B" },
+        { "expr": "up{job=\"trino-coordinator\"}", "legendFormat": "Trino Coordinator", "refId": "C" },
+        { "expr": "up{job=\"druid-coordinator\"}", "legendFormat": "Druid Coordinator", "refId": "D" },
+        { "expr": "up{job=\"druid-overlord\"}", "legendFormat": "Druid Overlord", "refId": "E" },
+        { "expr": "min(up{job=\"airflow\"})", "legendFormat": "Airflow", "refId": "F" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "id": 104,
+      "title": "Airflow DAGs",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } }, "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 11,
+      "title": "DAG Run Status",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "increase(airflow_dag_run_success_count[1h])", "legendFormat": "Success - {{ dag_id }}", "refId": "A" },
+        { "expr": "increase(airflow_dag_run_failed_count[1h])", "legendFormat": "Failed - {{ dag_id }}", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "id": 12,
+      "title": "DAG Run Duration",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "airflow_dag_run_duration_seconds", "legendFormat": "{{ dag_id }}", "refId": "A" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 105,
+      "title": "DynamoDB Streams",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "ms" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "id": 13,
+      "title": "DynamoDB Stream Iterator Age",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "dynamodb_streams_iterator_age_milliseconds", "legendFormat": "{{ table_name }}", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "id": 14,
+      "title": "DynamoDB Stream Records Processed",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(dynamodb_streams_records_processed_total[5m])", "legendFormat": "{{ table_name }}", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["pipeline", "zomato", "data-platform", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Kolkata",
+  "title": "Pipeline Health",
+  "uid": "pipeline-health",
+  "version": 1
+}

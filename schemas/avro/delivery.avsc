@@ -1,0 +1,47 @@
+{
+  "type": "record",
+  "name": "Delivery",
+  "namespace": "com.zomato.events",
+  "doc": "Delivery event schema for tracking order deliveries end-to-end",
+  "fields": [
+    {"name": "delivery_id", "type": "string", "doc": "Unique delivery identifier"},
+    {"name": "order_id", "type": "string", "doc": "Associated order identifier"},
+    {"name": "rider_id", "type": "string", "doc": "Assigned delivery rider"},
+    {"name": "restaurant_id", "type": "string", "doc": "Restaurant fulfilling the order"},
+    {"name": "status", "type": {
+      "type": "enum",
+      "name": "DeliveryStatus",
+      "symbols": ["ASSIGNED", "RIDER_AT_RESTAURANT", "PICKED_UP", "IN_TRANSIT", "NEAR_CUSTOMER", "DELIVERED", "CANCELLED", "RETURNED"]
+    }, "doc": "Current delivery status"},
+    {"name": "pickup_location", "type": {
+      "type": "record",
+      "name": "GeoLocation",
+      "fields": [
+        {"name": "latitude", "type": "double"},
+        {"name": "longitude", "type": "double"}
+      ]
+    }, "doc": "Restaurant pickup coordinates"},
+    {"name": "dropoff_location", "type": "com.zomato.events.GeoLocation", "doc": "Customer delivery coordinates"},
+    {"name": "current_location", "type": ["null", "com.zomato.events.GeoLocation"], "default": null, "doc": "Rider's current GPS position"},
+    {"name": "estimated_time_mins", "type": "int", "doc": "Estimated delivery time in minutes"},
+    {"name": "actual_time_mins", "type": ["null", "int"], "default": null, "doc": "Actual delivery time (set on completion)"},
+    {"name": "distance_km", "type": "double", "doc": "Straight-line distance between pickup and dropoff"},
+    {"name": "route_distance_km", "type": ["null", "double"], "default": null, "doc": "Actual route distance traveled"},
+    {"name": "city", "type": "string", "doc": "City where delivery is happening"},
+    {"name": "vehicle_type", "type": {
+      "type": "enum",
+      "name": "VehicleType",
+      "symbols": ["BICYCLE", "MOTORCYCLE", "SCOOTER", "CAR"],
+      "default": "MOTORCYCLE"
+    }, "doc": "Type of delivery vehicle"},
+    {"name": "rating", "type": ["null", "float"], "default": null, "doc": "Customer rating for the delivery (1-5)"},
+    {"name": "tip_amount", "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}], "default": null, "doc": "Customer tip amount"},
+    {"name": "delivery_fee", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}, "doc": "Delivery fee charged"},
+    {"name": "assigned_at", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When the rider was assigned"},
+    {"name": "picked_up_at", "type": ["null", {"type": "long", "logicalType": "timestamp-millis"}], "default": null, "doc": "When order was picked up"},
+    {"name": "delivered_at", "type": ["null", {"type": "long", "logicalType": "timestamp-millis"}], "default": null, "doc": "When order was delivered"},
+    {"name": "delay_reason", "type": ["null", "string"], "default": null, "doc": "Reason for delivery delay if applicable"},
+    {"name": "event_type", "type": "string", "doc": "CDC event type: INSERT, UPDATE, DELETE"},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "When this event was generated"}
+  ]
+}

@@ -1,0 +1,223 @@
+groups:
+  - name: kafka_broker_health
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Broker availability
+      # -----------------------------------------------------------------------
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka broker {{ $labels.instance }} is down"
+          description: >-
+            Kafka broker {{ $labels.broker_host }} in cluster
+            {{ $labels.cluster }} has been unreachable for more than 1 minute.
+          runbook_url: https://runbooks.zomato.internal/kafka/broker-down
+
+      - alert: KafkaInsufficientBrokers
+        expr: count(up{job="kafka"} == 1) < 3
+        for: 2m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka cluster has fewer than 3 live brokers"
+          description: >-
+            Only {{ $value }} brokers are up in the cluster. Minimum 3 required
+            for quorum. Immediate investigation needed.
+          runbook_url: https://runbooks.zomato.internal/kafka/insufficient-brokers
+
+      # -----------------------------------------------------------------------
+      # Under-replicated partitions
+      # -----------------------------------------------------------------------
+      - alert: KafkaUnderReplicatedPartitions
+        expr: kafka_server_replicamanager_underreplicatedpartitions > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka broker {{ $labels.instance }} has under-replicated partitions"
+          description: >-
+            Broker {{ $labels.broker_host }} has {{ $value }} under-replicated
+            partitions for over 5 minutes. This indicates potential data loss risk.
+          runbook_url: https://runbooks.zomato.internal/kafka/under-replicated
+
+      - alert: KafkaUnderReplicatedPartitionsCritical
+        expr: kafka_server_replicamanager_underreplicatedpartitions > 10
+        for: 2m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka broker {{ $labels.instance }} has many under-replicated partitions"
+          description: >-
+            Broker {{ $labels.broker_host }} has {{ $value }} under-replicated
+            partitions. This is a critical replication failure.
+          runbook_url: https://runbooks.zomato.internal/kafka/under-replicated-critical
+
+      # -----------------------------------------------------------------------
+      # Offline partitions
+      # -----------------------------------------------------------------------
+      - alert: KafkaOfflinePartitions
+        expr: kafka_controller_kafkacontroller_offlinepartitionscount > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka has {{ $value }} offline partitions"
+          description: >-
+            The controller reports {{ $value }} offline partitions. These
+            partitions are unavailable for produce and consume operations.
+          runbook_url: https://runbooks.zomato.internal/kafka/offline-partitions
+
+      # -----------------------------------------------------------------------
+      # ISR shrink / expand
+      # -----------------------------------------------------------------------
+      - alert: KafkaISRShrinkRate
+        expr: rate(kafka_server_replicamanager_isrshrinks_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka ISR shrink rate elevated on {{ $labels.instance }}"
+          description: >-
+            ISR shrink rate is {{ $value | printf \"%.2f\" }}/sec on broker
+            {{ $labels.broker_host }}. Frequent ISR shrinks indicate broker
+            instability or network issues.
+          runbook_url: https://runbooks.zomato.internal/kafka/isr-shrink
+
+  - name: kafka_consumer_lag
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Consumer group lag
+      # -----------------------------------------------------------------------
+      - alert: KafkaConsumerLagHigh
+        expr: kafka_consumergroup_lag_sum > 50000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} lag is high on topic {{ $labels.topic }}"
+          description: >-
+            Consumer group {{ $labels.consumergroup }} has accumulated
+            {{ $value | humanize }} messages of lag on topic {{ $labels.topic }}.
+            Processing may be falling behind.
+          runbook_url: https://runbooks.zomato.internal/kafka/consumer-lag
+
+      - alert: KafkaConsumerLagCritical
+        expr: kafka_consumergroup_lag_sum > 500000
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} lag is critical on topic {{ $labels.topic }}"
+          description: >-
+            Consumer group {{ $labels.consumergroup }} has {{ $value | humanize }}
+            messages of lag on topic {{ $labels.topic }}. Pipeline data freshness
+            is severely impacted.
+          runbook_url: https://runbooks.zomato.internal/kafka/consumer-lag-critical
+
+      - alert: KafkaConsumerLagIncreasing
+        expr: >
+          delta(kafka_consumergroup_lag_sum[15m]) > 100000
+          and kafka_consumergroup_lag_sum > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} lag is growing"
+          description: >-
+            Lag for consumer group {{ $labels.consumergroup }} on topic
+            {{ $labels.topic }} has grown by {{ $value | humanize }} in the last
+            15 minutes. Current lag: {{ with query "kafka_consumergroup_lag_sum" }}{{ . | first | value }}{{ end }}.
+          runbook_url: https://runbooks.zomato.internal/kafka/consumer-lag-increasing
+
+      # -----------------------------------------------------------------------
+      # Critical pipeline consumer groups
+      # -----------------------------------------------------------------------
+      - alert: KafkaOrderEventsConsumerLag
+        expr: >
+          kafka_consumergroup_lag_sum{
+            topic=~"order_events|order_events_enriched",
+            consumergroup=~"flink-order-processor|druid-order-ingestion"
+          } > 10000
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: kafka
+          pipeline: order-events
+        annotations:
+          summary: "Order events pipeline consumer lag is high"
+          description: >-
+            Consumer group {{ $labels.consumergroup }} on topic
+            {{ $labels.topic }} has {{ $value | humanize }} messages of lag.
+            Real-time order analytics may be stale.
+          runbook_url: https://runbooks.zomato.internal/kafka/order-events-lag
+
+  - name: kafka_throughput
+    interval: 30s
+    rules:
+      - alert: KafkaBrokerBytesInDrop
+        expr: >
+          rate(kafka_server_brokertopicmetrics_bytesin_total[5m])
+          < 0.1 * avg_over_time(rate(kafka_server_brokertopicmetrics_bytesin_total[5m])[1h:5m])
+        for: 10m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka broker {{ $labels.instance }} incoming bytes dropped"
+          description: >-
+            Incoming byte rate on broker {{ $labels.broker_host }} has dropped
+            below 10% of its 1-hour average. Upstream producers may be failing.
+          runbook_url: https://runbooks.zomato.internal/kafka/throughput-drop
+
+      - alert: KafkaRequestQueueFull
+        expr: kafka_network_requestmetrics_requestqueuesize > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka request queue growing on {{ $labels.instance }}"
+          description: >-
+            Request queue size is {{ $value }} on broker {{ $labels.broker_host }}.
+            The broker may be overloaded.
+          runbook_url: https://runbooks.zomato.internal/kafka/request-queue
+
+      - alert: KafkaProduceLatencyHigh
+        expr: kafka_network_requestmetrics_totaltimems{request="Produce", quantile="0.99"} > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: data-platform
+          service: kafka
+        annotations:
+          summary: "Kafka produce p99 latency is high on {{ $labels.instance }}"
+          description: >-
+            p99 produce latency is {{ $value }}ms on broker
+            {{ $labels.broker_host }}. Threshold is 500ms.
+          runbook_url: https://runbooks.zomato.internal/kafka/produce-latency

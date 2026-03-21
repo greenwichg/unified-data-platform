@@ -1,0 +1,164 @@
+# ============================================================================
+# Pipeline 2 - CDC Configuration
+# Aurora MySQL -> Debezium -> Kafka -> Flink -> Iceberg/S3
+# Continuous CDC with near real-time latency target < 10 minutes
+# ============================================================================
+
+pipeline:
+  name: pipeline2_cdc
+  description: "Change Data Capture from Aurora MySQL via Debezium to Iceberg tables"
+  mode: continuous
+  owner: data-platform-team
+  alert_channel: "#data-pipeline-alerts"
+  sla_max_lag_minutes: 10
+
+# ----- Source: Debezium CDC -----
+debezium:
+  connect_url: ${KAFKA_CONNECT_URL:http://kafka-connect.zomato-data.internal:8083}
+  connect_cluster: zomato-connect-cluster-prod
+
+  connectors:
+    - name: zomato-orders-cdc
+      table: zomato.orders
+      server_id: 1001
+      topic_prefix: zomato-cdc
+      tasks_max: 3
+      snapshot_mode: initial
+      signal_table: zomato.debezium_signal
+      heartbeat_interval_ms: 10000
+
+    - name: zomato-users-cdc
+      table: zomato.users
+      server_id: 1002
+      topic_prefix: zomato-cdc
+      tasks_max: 2
+      snapshot_mode: initial
+      signal_table: zomato.debezium_signal
+      heartbeat_interval_ms: 10000
+
+    - name: zomato-menu-cdc
+      table: zomato.menu_items
+      server_id: 1003
+      topic_prefix: zomato-cdc
+      tasks_max: 2
+      snapshot_mode: initial
+      signal_table: zomato.debezium_signal
+      heartbeat_interval_ms: 10000
+
+    - name: zomato-promo-cdc
+      table: zomato.promotions
+      server_id: 1004
+      topic_prefix: zomato-cdc
+      tasks_max: 1
+      snapshot_mode: initial
+      signal_table: zomato.debezium_signal
+      heartbeat_interval_ms: 10000
+
+  common_config:
+    database_hostname: ${AURORA_HOST}
+    database_port: 3306
+    database_user: ${DB_USER}
+    database_password_secret: "arn:aws:secretsmanager:ap-south-1:ACCOUNT_ID:secret:zomato/aurora/cdc-user"
+    database_include_list: zomato
+    key_converter: io.confluent.connect.avro.AvroConverter
+    value_converter: io.confluent.connect.avro.AvroConverter
+    schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+    decimal_handling_mode: string
+    time_precision_mode: connect
+    tombstones_on_delete: true
+    provide_transaction_metadata: true
+    transforms:
+      - type: ExtractNewRecordState
+        drop_tombstones: false
+        delete_handling_mode: rewrite
+      - type: RegexRouter
+
+# ----- Kafka Topics -----
+kafka:
+  bootstrap_servers: ${KAFKA_BOOTSTRAP:kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092}
+  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+
+  topics:
+    orders:
+      name: orders
+      partitions: 64
+      replication_factor: 3
+      retention_ms: 604800000  # 7 days
+      cleanup_policy: delete
+    users:
+      name: users
+      partitions: 64
+      replication_factor: 3
+      retention_ms: 604800000
+      cleanup_policy: compact,delete
+    menu:
+      name: menu
+      partitions: 64
+      replication_factor: 3
+      retention_ms: 604800000
+      cleanup_policy: compact,delete
+    promo:
+      name: promo
+      partitions: 64
+      replication_factor: 3
+      retention_ms: 604800000
+      cleanup_policy: delete
+
+  consumer_config:
+    group_id: flink-cdc-processor
+    auto_offset_reset: earliest
+    max_poll_records: 5000
+    session_timeout_ms: 30000
+    heartbeat_interval_ms: 10000
+    fetch_min_bytes: 1048576
+    fetch_max_wait_ms: 500
+
+# ----- Flink Job -----
+flink:
+  job_name: zomato-cdc-to-iceberg
+  parallelism: 32
+  checkpoint_interval_ms: 60000
+  checkpoint_timeout_ms: 120000
+  checkpoint_min_pause_ms: 30000
+  max_concurrent_checkpoints: 1
+  state_backend: rocksdb
+  state_backend_incremental: true
+  restart_strategy: fixed-delay
+  restart_attempts: 10
+  restart_delay_seconds: 30
+
+  checkpointing:
+    type: s3
+    bucket: ${S3_CHECKPOINTS_BUCKET:zomato-data-platform-prod-checkpoints}
+    prefix: "pipeline2-cdc/flink-checkpoints"
+
+  resource:
+    jobmanager_memory_mb: 4096
+    taskmanager_memory_mb: 8192
+    taskmanager_slots: 4
+    taskmanager_count: 8
+
+# ----- Sink: Iceberg on S3 -----
+iceberg:
+  catalog_type: hive
+  catalog_name: zomato_iceberg
+  warehouse: "s3://${S3_PROCESSED_BUCKET:zomato-data-platform-prod-processed-data-lake}/pipeline2-cdc/iceberg"
+  database: zomato_cdc
+  write_format: orc
+  target_file_size_bytes: 536870912  # 512 MB
+  commit_interval_ms: 60000
+  upsert_enabled: true
+  equality_field_columns:
+    orders: [order_id]
+    users: [user_id]
+    menu_items: [item_id]
+    promotions: [promo_id]
+
+# ----- Monitoring -----
+monitoring:
+  enable_metrics: true
+  metrics_reporter: prometheus
+  prometheus_port: 9249
+  lag_alert_threshold_minutes: 10
+  error_rate_alert_threshold: 0.01
+  cloudwatch_namespace: zomato-data-platform/pipeline2-cdc

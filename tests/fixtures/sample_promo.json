@@ -1,0 +1,18 @@
+{
+  "promo_id": "promo_summer2024",
+  "promo_code": "SUMMER50",
+  "description": "Get 50% off on your first 3 orders this summer!",
+  "discount_type": "PERCENTAGE",
+  "discount_value": 50.00,
+  "min_order_value": 299.00,
+  "max_discount": 150.00,
+  "valid_from": "2024-06-01T00:00:00.000Z",
+  "valid_until": "2024-08-31T23:59:59.000Z",
+  "applicable_restaurants": [],
+  "applicable_cities": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Pune"],
+  "usage_count": 45230,
+  "max_usage": 100000,
+  "is_active": true,
+  "event_type": "UPDATE",
+  "event_timestamp": "2024-06-15T08:00:00.000Z"
+}

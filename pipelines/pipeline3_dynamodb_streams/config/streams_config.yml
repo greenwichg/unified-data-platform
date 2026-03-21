@@ -1,0 +1,191 @@
+# ============================================================================
+# Pipeline 3 - DynamoDB Streams Configuration
+# DynamoDB -> Streams -> Lambda/ECS -> S3 JSON -> Spark (EMR) -> ORC -> S3
+# ECS Multi-AZ deployment for high availability
+# ============================================================================
+
+pipeline:
+  name: pipeline3_dynamodb_streams
+  description: "DynamoDB Streams to S3 data lake via ECS processors and EMR Spark"
+  schedule: "@hourly"
+  owner: data-platform-team
+  alert_channel: "#data-pipeline-alerts"
+  sla_max_lag_hours: 2
+
+# ----- Source: DynamoDB Tables -----
+dynamodb:
+  region: ap-south-1
+
+  tables:
+    - name: zomato-user-sessions
+      stream_enabled: true
+      stream_view_type: NEW_AND_OLD_IMAGES
+      shard_iterator_type: TRIM_HORIZON
+      batch_size: 100
+      max_batching_window_seconds: 5
+      parallelization_factor: 4
+      bisect_on_error: true
+      max_retry_attempts: 3
+      description: "User session and activity tracking"
+
+    - name: zomato-delivery-tracking
+      stream_enabled: true
+      stream_view_type: NEW_AND_OLD_IMAGES
+      shard_iterator_type: TRIM_HORIZON
+      batch_size: 200
+      max_batching_window_seconds: 3
+      parallelization_factor: 8
+      bisect_on_error: true
+      max_retry_attempts: 3
+      description: "Real-time delivery partner GPS and status"
+
+    - name: zomato-restaurant-inventory
+      stream_enabled: true
+      stream_view_type: NEW_AND_OLD_IMAGES
+      shard_iterator_type: TRIM_HORIZON
+      batch_size: 50
+      max_batching_window_seconds: 10
+      parallelization_factor: 2
+      bisect_on_error: true
+      max_retry_attempts: 3
+      description: "Restaurant menu availability and stock levels"
+
+    - name: zomato-user-preferences
+      stream_enabled: true
+      stream_view_type: NEW_IMAGE
+      shard_iterator_type: TRIM_HORIZON
+      batch_size: 100
+      max_batching_window_seconds: 10
+      parallelization_factor: 2
+      bisect_on_error: true
+      max_retry_attempts: 3
+      description: "User preferences, favorites, and dietary filters"
+
+# ----- ECS Stream Processors -----
+ecs:
+  cluster_name: zomato-dynamodb-stream-processors
+  deployment:
+    multi_az: true
+    availability_zones:
+      - ap-south-1a
+      - ap-south-1b
+      - ap-south-1c
+    desired_count: 6
+    min_count: 3
+    max_count: 18
+
+  task_definition:
+    family: dynamodb-stream-processor
+    cpu: 1024
+    memory: 2048
+    network_mode: awsvpc
+    execution_role_arn: "arn:aws:iam::ACCOUNT_ID:role/zomato-ecs-task-execution-role"
+    task_role_arn: "arn:aws:iam::ACCOUNT_ID:role/zomato-ecs-dynamodb-stream-role"
+
+  autoscaling:
+    target_tracking:
+      metric: ECSServiceAverageCPUUtilization
+      target_value: 65
+      scale_in_cooldown: 300
+      scale_out_cooldown: 120
+    step_scaling:
+      - threshold: 80
+        adjustment: 2
+      - threshold: 95
+        adjustment: 4
+
+  health_check:
+    path: /health
+    interval: 30
+    timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+
+# ----- S3 Staging (JSON) -----
+s3_staging:
+  bucket: ${S3_RAW_BUCKET:zomato-data-platform-prod-raw-data-lake}
+  prefix: "pipeline3-dynamodb/json-raw"
+  partition_format: "table_name={table}/year=%Y/month=%m/day=%d/hour=%H"
+  buffer_size_mb: 64
+  buffer_interval_seconds: 300
+  compression: gzip
+  file_extension: ".json.gz"
+
+# ----- EMR Spark Conversion -----
+emr:
+  cluster_id: ${EMR_CLUSTER_ID}
+  release_label: emr-7.0.0
+  instance_groups:
+    master:
+      instance_type: m6g.2xlarge
+      count: 1
+    core:
+      instance_type: r6g.4xlarge
+      count: 4
+      ebs_volume_size_gb: 500
+    task:
+      instance_type: r6g.2xlarge
+      count: 0
+      max_count: 8
+      spot_bid_percent: 60
+
+  spark_config:
+    executor_memory: "12g"
+    executor_cores: 4
+    driver_memory: "8g"
+    dynamic_allocation: true
+    dynamic_allocation_min_executors: 4
+    dynamic_allocation_max_executors: 32
+    dynamic_allocation_initial_executors: 8
+    shuffle_partitions: 200
+    sql_adaptive_enabled: true
+    sql_adaptive_coalesce_partitions: true
+
+  step_config:
+    name: "dynamodb-json-to-orc"
+    action_on_failure: CONTINUE
+    jar: "s3://zomato-data-platform-prod-artifacts/spark-jobs/dynamodb-orc-converter.jar"
+    main_class: "com.zomato.data.DynamoDBJsonToOrc"
+    args:
+      - "--input-path"
+      - "s3://${S3_RAW_BUCKET}/pipeline3-dynamodb/json-raw"
+      - "--output-path"
+      - "s3://${S3_PROCESSED_BUCKET}/pipeline3-dynamodb/orc"
+      - "--partition-columns"
+      - "table_name,event_name"
+
+# ----- S3 Output (ORC) -----
+s3_output:
+  bucket: ${S3_PROCESSED_BUCKET:zomato-data-platform-prod-processed-data-lake}
+  prefix: "pipeline3-dynamodb/orc"
+  partition_format: "table_name={table}/year=%Y/month=%m/day=%d"
+  file_format: orc
+  compression: snappy
+  orc_settings:
+    stripe_size_mb: 256
+    bloom_filter_columns:
+      - event_id
+      - user_id
+      - delivery_id
+      - restaurant_id
+
+# ----- Quality Checks -----
+quality:
+  enable_row_count_validation: true
+  source_vs_target_threshold: 0.99
+  null_check_columns:
+    zomato-user-sessions: [user_id, session_id]
+    zomato-delivery-tracking: [delivery_id, order_id]
+    zomato-restaurant-inventory: [restaurant_id, item_id]
+  freshness_max_hours: 2
+  enable_duplicate_detection: true
+  duplicate_key_columns:
+    zomato-user-sessions: [event_id]
+    zomato-delivery-tracking: [event_id]
+
+# ----- Dead Letter Queue -----
+dlq:
+  bucket: ${S3_RAW_BUCKET:zomato-data-platform-prod-raw-data-lake}
+  prefix: "pipeline3-dynamodb/dlq"
+  max_retry_count: 3
+  alert_on_dlq_write: true

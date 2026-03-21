@@ -1,0 +1,116 @@
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092",
+        "group.id": "druid-orders-ingestion",
+        "security.protocol": "PLAINTEXT",
+        "fetch.min.bytes": "1048576",
+        "fetch.max.wait.ms": "500",
+        "max.poll.records": "10000",
+        "max.partition.fetch.bytes": "10485760",
+        "receive.buffer.bytes": "1048576"
+      },
+      "topic": "orders",
+      "inputFormat": {
+        "type": "json",
+        "flattenSpec": {
+          "useFieldDiscovery": false,
+          "fields": [
+            { "type": "root", "name": "order_id" },
+            { "type": "root", "name": "user_id" },
+            { "type": "root", "name": "restaurant_id" },
+            { "type": "root", "name": "order_status" },
+            { "type": "root", "name": "city" },
+            { "type": "root", "name": "zone" },
+            { "type": "root", "name": "payment_method" },
+            { "type": "root", "name": "platform" },
+            { "type": "root", "name": "total_amount" },
+            { "type": "root", "name": "delivery_fee" },
+            { "type": "root", "name": "discount_amount" },
+            { "type": "root", "name": "item_count" },
+            { "type": "root", "name": "delivery_time_minutes" },
+            { "type": "root", "name": "order_timestamp" },
+            { "type": "path", "name": "cuisine_type", "expr": "$.restaurant.cuisine_type" },
+            { "type": "path", "name": "is_pro_user", "expr": "$.user.is_pro" },
+            { "type": "path", "name": "device_type", "expr": "$.device.type" },
+            { "type": "path", "name": "latitude", "expr": "$.location.lat" },
+            { "type": "path", "name": "longitude", "expr": "$.location.lng" }
+          ]
+        }
+      },
+      "useEarliestOffset": true,
+      "taskDuration": "PT1H",
+      "completionTimeout": "PT30M",
+      "lateMessageRejectionStartDateTime": null,
+      "earlyMessageRejectionPeriod": null
+    },
+    "tuningConfig": {
+      "type": "kafka",
+      "maxRowsInMemory": 1000000,
+      "maxBytesInMemory": 536870912,
+      "maxRowsPerSegment": 5000000,
+      "maxTotalRows": 20000000,
+      "intermediatePersistPeriod": "PT10M",
+      "taskCount": 16,
+      "replicas": 2,
+      "handoffConditionTimeout": 900000,
+      "resetOffsetAutomatically": false,
+      "skipSequenceNumberAvailabilityCheck": false,
+      "indexSpec": {
+        "bitmap": { "type": "roaring" },
+        "dimensionCompression": "lz4",
+        "metricCompression": "lz4",
+        "longEncoding": "longs"
+      },
+      "logParseExceptions": true,
+      "maxParseExceptions": 1000,
+      "maxSavedParseExceptions": 25
+    },
+    "dataSchema": {
+      "dataSource": "zomato_orders",
+      "timestampSpec": {
+        "column": "order_timestamp",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "order_id",
+          "user_id",
+          "restaurant_id",
+          "order_status",
+          "city",
+          "zone",
+          "payment_method",
+          "platform",
+          "cuisine_type",
+          { "type": "string", "name": "is_pro_user" },
+          "device_type"
+        ],
+        "dimensionExclusions": []
+      },
+      "metricsSpec": [
+        { "type": "count", "name": "count" },
+        { "type": "doubleSum", "name": "total_revenue", "fieldName": "total_amount" },
+        { "type": "doubleSum", "name": "total_delivery_fees", "fieldName": "delivery_fee" },
+        { "type": "doubleSum", "name": "total_discounts", "fieldName": "discount_amount" },
+        { "type": "longSum", "name": "total_items", "fieldName": "item_count" },
+        { "type": "doubleMin", "name": "min_delivery_time", "fieldName": "delivery_time_minutes" },
+        { "type": "doubleMax", "name": "max_delivery_time", "fieldName": "delivery_time_minutes" },
+        { "type": "doubleSum", "name": "sum_delivery_time", "fieldName": "delivery_time_minutes" },
+        { "type": "thetaSketch", "name": "unique_users", "fieldName": "user_id", "size": 16384 },
+        { "type": "thetaSketch", "name": "unique_restaurants", "fieldName": "restaurant_id", "size": 16384 },
+        { "type": "doubleFirst", "name": "first_latitude", "fieldName": "latitude" },
+        { "type": "doubleFirst", "name": "first_longitude", "fieldName": "longitude" }
+      ],
+      "granularitySpec": {
+        "segmentGranularity": "HOUR",
+        "queryGranularity": "MINUTE",
+        "rollup": true
+      }
+    }
+  },
+  "suspended": false
+}

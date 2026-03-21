@@ -1,0 +1,85 @@
+{
+  "compactionConfigs": [
+    {
+      "dataSource": "zomato_orders",
+      "skipOffsetFromLatest": "PT1H",
+      "taskPriority": 25,
+      "tuningConfig": {
+        "type": "index_parallel",
+        "maxRowsInMemory": 1000000,
+        "maxRowsPerSegment": 5000000,
+        "maxNumConcurrentSubTasks": 4,
+        "totalNumMergeTasks": 4,
+        "partitionsSpec": {
+          "type": "hashed",
+          "numShards": null,
+          "partitionDimensions": ["city"],
+          "targetRowsPerSegment": 5000000
+        },
+        "splitHintSpec": {
+          "type": "maxSize",
+          "maxSplitSize": 536870912
+        },
+        "indexSpec": {
+          "bitmap": { "type": "roaring" },
+          "dimensionCompression": "lz4",
+          "metricCompression": "lz4",
+          "longEncoding": "longs"
+        },
+        "forceGuaranteedRollup": true
+      },
+      "granularitySpec": {
+        "segmentGranularity": "DAY",
+        "queryGranularity": "MINUTE",
+        "rollup": true
+      },
+      "ioConfig": {
+        "inputSpec": {
+          "type": "interval",
+          "interval": null
+        }
+      },
+      "taskContext": {
+        "priority": 25,
+        "taskLockTimeout": 300000
+      }
+    },
+    {
+      "dataSource": "zomato_realtime_events",
+      "skipOffsetFromLatest": "PT2H",
+      "taskPriority": 25,
+      "tuningConfig": {
+        "type": "index_parallel",
+        "maxRowsInMemory": 1000000,
+        "maxRowsPerSegment": 5000000,
+        "maxNumConcurrentSubTasks": 6,
+        "totalNumMergeTasks": 4,
+        "partitionsSpec": {
+          "type": "hashed",
+          "partitionDimensions": ["event_type", "city"],
+          "targetRowsPerSegment": 5000000
+        },
+        "splitHintSpec": {
+          "type": "maxSize",
+          "maxSplitSize": 536870912
+        },
+        "indexSpec": {
+          "bitmap": { "type": "roaring" },
+          "dimensionCompression": "lz4",
+          "metricCompression": "lz4",
+          "longEncoding": "longs"
+        },
+        "forceGuaranteedRollup": true
+      },
+      "granularitySpec": {
+        "segmentGranularity": "DAY",
+        "queryGranularity": "MINUTE",
+        "rollup": true
+      },
+      "taskContext": {
+        "priority": 25,
+        "taskLockTimeout": 300000
+      }
+    }
+  ]
+}

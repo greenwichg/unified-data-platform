@@ -1,0 +1,276 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: ${SLACK_WEBHOOK_URL}
+  pagerduty_url: https://events.pagerduty.com/v2/enqueue
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+inhibit_rules:
+  # If the entire broker is down, suppress per-topic alerts for that broker
+  - source_matchers:
+      - alertname = KafkaBrokerDown
+    target_matchers:
+      - service = kafka
+      - alertname != KafkaBrokerDown
+      - alertname != KafkaInsufficientBrokers
+    equal:
+      - instance
+
+  # If Flink job is not running, suppress checkpoint and backpressure alerts
+  - source_matchers:
+      - alertname = FlinkJobNotRunning
+    target_matchers:
+      - service = flink
+      - alertname != FlinkJobNotRunning
+    equal:
+      - job_name
+
+  # If Trino coordinator is down, suppress worker and query alerts
+  - source_matchers:
+      - alertname = TrinoCoordinatorDown
+    target_matchers:
+      - service = trino
+      - alertname != TrinoCoordinatorDown
+    equal:
+      - trino_cluster
+
+  # If Druid coordinator is down, suppress segment alerts
+  - source_matchers:
+      - alertname = DruidCoordinatorDown
+    target_matchers:
+      - service = druid
+      - alertname =~ "DruidSegments.*"
+
+  # Critical inhibits warning for the same alert
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal:
+      - alertname
+      - instance
+
+route:
+  receiver: slack-default
+  group_by:
+    - alertname
+    - service
+    - severity
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # -------------------------------------------------------------------------
+    # Critical alerts -> PagerDuty + Slack critical channel
+    # -------------------------------------------------------------------------
+    - matchers:
+        - severity = critical
+      receiver: pagerduty-critical
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+      continue: true
+
+    - matchers:
+        - severity = critical
+      receiver: slack-critical
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+
+    # -------------------------------------------------------------------------
+    # Kafka-specific routing
+    # -------------------------------------------------------------------------
+    - matchers:
+        - service = kafka
+        - severity = warning
+      receiver: slack-kafka
+      group_by:
+        - alertname
+        - cluster
+      repeat_interval: 2h
+
+    # -------------------------------------------------------------------------
+    # Flink-specific routing
+    # -------------------------------------------------------------------------
+    - matchers:
+        - service = flink
+        - severity = warning
+      receiver: slack-flink
+      group_by:
+        - alertname
+        - job_name
+      repeat_interval: 2h
+
+    # -------------------------------------------------------------------------
+    # Trino-specific routing
+    # -------------------------------------------------------------------------
+    - matchers:
+        - service = trino
+        - severity = warning
+      receiver: slack-trino
+      group_by:
+        - alertname
+        - trino_cluster
+      repeat_interval: 2h
+
+    # -------------------------------------------------------------------------
+    # Druid-specific routing
+    # -------------------------------------------------------------------------
+    - matchers:
+        - service = druid
+        - severity = warning
+      receiver: slack-druid
+      group_by:
+        - alertname
+        - dataSource
+      repeat_interval: 2h
+
+    # -------------------------------------------------------------------------
+    # Pipeline / Airflow routing
+    # -------------------------------------------------------------------------
+    - matchers:
+        - service =~ "pipeline|airflow"
+        - severity = warning
+      receiver: slack-pipeline
+      group_by:
+        - alertname
+        - pipeline
+      repeat_interval: 2h
+
+    # -------------------------------------------------------------------------
+    # Order events pipeline (business-critical) -> additional notification
+    # -------------------------------------------------------------------------
+    - matchers:
+        - pipeline = order-events
+        - severity = critical
+      receiver: pagerduty-order-events
+      group_wait: 10s
+      repeat_interval: 30m
+      continue: true
+
+receivers:
+  - name: slack-default
+    slack_configs:
+      - channel: "#data-platform-alerts"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]
+          {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* `{{ .Labels.severity }}`
+          *Service:* `{{ .Labels.service }}`
+          *Details:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+        actions:
+          - type: button
+            text: "Runbook"
+            url: "{{ (index .Alerts 0).Annotations.runbook_url }}"
+          - type: button
+            text: "Silence"
+            url: '{{ template "__alertmanagerURL" . }}/#/silences/new?filter=%7B{{ range .CommonLabels.SortedPairs }}{{ .Name }}%3D"{{ .Value }}"%2C{{ end }}%7D'
+
+  - name: slack-critical
+    slack_configs:
+      - channel: "#data-platform-critical"
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        title: >-
+          :rotating_light: [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Service:* `{{ .Labels.service }}`
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+
+  - name: slack-kafka
+    slack_configs:
+      - channel: "#data-platform-kafka"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}] Kafka: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: slack-flink
+    slack_configs:
+      - channel: "#data-platform-flink"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}] Flink: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: slack-trino
+    slack_configs:
+      - channel: "#data-platform-trino"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}] Trino: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: slack-druid
+    slack_configs:
+      - channel: "#data-platform-druid"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}] Druid: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: slack-pipeline
+    slack_configs:
+      - channel: "#data-platform-pipeline"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}] Pipeline: {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          {{ end }}
+
+  - name: pagerduty-critical
+    pagerduty_configs:
+      - routing_key: ${PAGERDUTY_ROUTING_KEY_CRITICAL}
+        severity: critical
+        description: >-
+          {{ .CommonLabels.alertname }}: {{ (index .Alerts 0).Annotations.summary }}
+        details:
+          service: "{{ .CommonLabels.service }}"
+          severity: "{{ .CommonLabels.severity }}"
+          description: "{{ (index .Alerts 0).Annotations.description }}"
+          runbook: "{{ (index .Alerts 0).Annotations.runbook_url }}"
+          num_firing: "{{ .Alerts.Firing | len }}"
+
+  - name: pagerduty-order-events
+    pagerduty_configs:
+      - routing_key: ${PAGERDUTY_ROUTING_KEY_ORDER_EVENTS}
+        severity: critical
+        description: >-
+          Order Events Pipeline: {{ .CommonLabels.alertname }}
+        details:
+          service: "{{ .CommonLabels.service }}"
+          pipeline: "{{ .CommonLabels.pipeline }}"
+          description: "{{ (index .Alerts 0).Annotations.description }}"
+          runbook: "{{ (index .Alerts 0).Annotations.runbook_url }}"
