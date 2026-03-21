@@ -8,28 +8,49 @@
 listeners: http://0.0.0.0:8081
 host.name: schema-registry.zomato-data.internal
 
-# ----- Kafka Backend -----
+# ----- Kafka Backend (Kafkastore) -----
 kafkastore.bootstrap.servers: PLAINTEXT://kafka1.zomato-data.internal:9092,PLAINTEXT://kafka2.zomato-data.internal:9092,PLAINTEXT://kafka3.zomato-data.internal:9092
 kafkastore.topic: _schemas
 kafkastore.topic.replication.factor: 3
 kafkastore.init.timeout.ms: 120000
 kafkastore.timeout.ms: 500
+kafkastore.write.max.retries: 5
+kafkastore.security.protocol: PLAINTEXT
 
 # ----- Schema Compatibility -----
 # BACKWARD: new schema can read data written by old schema
 # This is the safest default for evolving schemas without breaking consumers
+#
+# Available levels:
+#   BACKWARD           - new schema can read old data
+#   BACKWARD_TRANSITIVE - new schema can read ALL previous versions
+#   FORWARD            - old schema can read new data
+#   FORWARD_TRANSITIVE - all previous schemas can read new data
+#   FULL               - both backward and forward compatible
+#   FULL_TRANSITIVE    - full compatibility with ALL previous versions
+#   NONE               - no compatibility checking
 compatibility: BACKWARD
 
 # Per-subject overrides can be set via REST API:
 #   PUT /config/{subject} {"compatibility": "FULL"}
+# Recommended overrides:
+#   - CDC subjects: FULL (schema must be compatible in both directions)
+#   - Event-sourcing subjects: FORWARD_TRANSITIVE (old consumers must keep working)
+#   - Internal analytics subjects: BACKWARD (default is fine)
 
 # ----- Leader Election -----
 # In multi-node deployment, only the leader handles writes
+# All nodes can serve read requests
 leader.eligibility: true
 schema.registry.group.id: zomato-schema-registry
+master.eligibility: true
 
-# ----- Inter-instance Protocol -----
+# ----- Inter-Instance Protocol -----
+# Protocol for communication between schema registry nodes
+# Use 'https' if SSL is configured between instances
 schema.registry.inter.instance.protocol: http
+# Headers to forward between instances
+schema.registry.inter.instance.headers.whitelist: ""
 
 # ----- Schema Types -----
 # Enable support for multiple schema types
@@ -38,16 +59,27 @@ schema.providers:
   - PROTOBUF
   - JSON
 
+# ----- Schema Normalization -----
+# Normalize schemas before storing to avoid duplicate registrations
+# with cosmetic differences (field order, whitespace, etc.)
+schema.canonicalize.on.consume: true
+
+# ----- Schema ID Allocation -----
+# Counter-based allocation for predictable IDs
+schema.registry.resource.extension.class: ""
+
 # ----- Authentication -----
 # authentication.method: BASIC
 # authentication.realm: SchemaRegistryProps
 # authentication.roles: admin,developer,readonly
 
-# ----- SSL (if needed) -----
+# ----- SSL (if needed for HTTPS listeners) -----
 # ssl.keystore.location: /etc/schema-registry/ssl/keystore.jks
 # ssl.keystore.password: ${KEYSTORE_PASSWORD}
 # ssl.truststore.location: /etc/schema-registry/ssl/truststore.jks
 # ssl.truststore.password: ${TRUSTSTORE_PASSWORD}
+# ssl.client.authentication: NONE
+# ssl.enabled.protocols: TLSv1.3,TLSv1.2
 
 # ----- Access Control -----
 # resource.extension.class: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
@@ -59,10 +91,18 @@ schema.providers:
 # Prometheus JMX exporter
 # SCHEMA_REGISTRY_JMX_OPTS: -javaagent:/opt/jmx_exporter/jmx_prometheus_javaagent.jar=9310:/opt/jmx_exporter/schema-registry.yml
 
-# ----- Performance -----
+# ----- Performance / Caching -----
 # Cache schemas in memory for fast lookups
 schema.cache.size: 1000
 schema.cache.expiry.secs: 300
+
+# Response headers for CORS (if accessed from web UIs)
+access.control.allow.methods: GET,POST,PUT,DELETE,OPTIONS
+access.control.allow.origin: "*"
+
+# Request handling
+request.timeout.ms: 30000
+shutdown.graceful.ms: 10000
 
 # ----- Logging -----
 # debug: false (set via log4j.properties)
