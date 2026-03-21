@@ -6,7 +6,7 @@ groups:
       # Broker availability
       # -----------------------------------------------------------------------
       - alert: KafkaBrokerDown
-        expr: up{job="kafka"} == 0
+        expr: up{job="msk-broker"} == 0
         for: 1m
         labels:
           severity: critical

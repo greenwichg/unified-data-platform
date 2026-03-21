@@ -92,21 +92,20 @@ pipelines:
     checkpoint_interval_ms: 30000
     druid_datasource: zomato_realtime_events
 
-# Trino Configuration
-trino:
-  clusters:
+# Amazon Athena Configuration (replaces self-hosted Trino)
+athena:
+  region: ${AWS_REGION:ap-south-1}
+  workgroups:
     adhoc:
-      host: ${TRINO_ADHOC_HOST:localhost}
-      port: 8080
-      workers: 10
+      name: ${ATHENA_ADHOC_WORKGROUP:zomato-adhoc}
+      output_location: "s3://${S3_PROCESSED_BUCKET}/athena-results/adhoc/"
     etl:
-      host: ${TRINO_ETL_HOST:localhost}
-      port: 8080
-      workers: 20
+      name: ${ATHENA_ETL_WORKGROUP:zomato-etl}
+      output_location: "s3://${S3_PROCESSED_BUCKET}/athena-results/etl/"
     reporting:
-      host: ${TRINO_REPORTING_HOST:localhost}
-      port: 8080
-      workers: 8
+      name: ${ATHENA_REPORTING_WORKGROUP:zomato-reporting}
+      output_location: "s3://${S3_PROCESSED_BUCKET}/athena-results/reporting/"
+  catalog: AwsDataCatalog
 
 # Druid Configuration
 druid:

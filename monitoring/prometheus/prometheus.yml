@@ -10,7 +10,7 @@ global:
 rule_files:
   - /etc/prometheus/rules/kafka_alerts.yml
   - /etc/prometheus/rules/flink_alerts.yml
-  - /etc/prometheus/rules/trino_alerts.yml
+  # trino_alerts.yml removed — Trino replaced by Amazon Athena (monitored via CloudWatch)
   - /etc/prometheus/rules/druid_alerts.yml
   - /etc/prometheus/rules/pipeline_alerts.yml
 
@@ -55,22 +55,29 @@ scrape_configs:
         target_label: role
 
   # ---------------------------------------------------------------------------
-  # Kafka brokers (JMX exporter on port 7071)
+  # Amazon MSK brokers (open monitoring via Prometheus on port 11001/11002)
   # ---------------------------------------------------------------------------
-  - job_name: kafka
+  - job_name: msk-broker
     static_configs:
       - targets:
-          - kafka-broker-1:7071
-          - kafka-broker-2:7071
-          - kafka-broker-3:7071
-          - kafka-broker-4:7071
-          - kafka-broker-5:7071
+          - b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11001
+          - b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11001
+          - b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11001
         labels:
-          cluster: zomato-kafka-prod
+          cluster: zomato-msk-prod
     relabel_configs:
       - source_labels: [__address__]
-        regex: (.+):7071
+        regex: (.+):11001
         target_label: broker_host
+
+  - job_name: msk-broker-per-topic
+    static_configs:
+      - targets:
+          - b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11002
+          - b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11002
+          - b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:11002
+        labels:
+          cluster: zomato-msk-prod
 
   # ---------------------------------------------------------------------------
   # Kafka Exporter (consumer group lag metrics)
@@ -83,7 +90,8 @@ scrape_configs:
           cluster: zomato-kafka-prod
 
   # ---------------------------------------------------------------------------
-  # Apache Flink (JobManager + TaskManagers)
+  # Apache Flink (JobManager only — TaskManagers managed by AWS Managed Flink)
+  # Managed Flink metrics are exported via CloudWatch; scraped by cloudwatch-exporter below.
   # ---------------------------------------------------------------------------
   - job_name: flink-jobmanager
     static_configs:
@@ -93,40 +101,10 @@ scrape_configs:
           flink_cluster: zomato-flink-prod
     metrics_path: /metrics
 
-  - job_name: flink-taskmanager
-    consul_sd_configs:
-      - server: consul:8500
-        services:
-          - flink-taskmanager
-    relabel_configs:
-      - source_labels: [__meta_consul_service_metadata_flink_cluster]
-        target_label: flink_cluster
-      - source_labels: [__meta_consul_service_metadata_taskmanager_id]
-        target_label: tm_id
-    metrics_path: /metrics
-
   # ---------------------------------------------------------------------------
-  # Trino (coordinator + workers)
+  # Amazon Athena (replaces self-hosted Trino)
+  # Athena metrics are available via CloudWatch; scraped by cloudwatch-exporter below.
   # ---------------------------------------------------------------------------
-  - job_name: trino-coordinator
-    static_configs:
-      - targets:
-          - trino-coordinator:8081
-        labels:
-          trino_cluster: zomato-trino-prod
-    metrics_path: /metrics
-
-  - job_name: trino-workers
-    consul_sd_configs:
-      - server: consul:8500
-        services:
-          - trino-worker
-    relabel_configs:
-      - source_labels: [__meta_consul_service_metadata_trino_cluster]
-        target_label: trino_cluster
-      - source_labels: [__meta_consul_service_metadata_worker_id]
-        target_label: worker_id
-    metrics_path: /metrics
 
   # ---------------------------------------------------------------------------
   # Apache Druid
