@@ -1,0 +1,121 @@
+# Zomato Data Platform - Application Configuration
+# Environment-specific values should be overridden via environment variables
+
+platform:
+  name: zomato-data-platform
+  version: "1.0.0"
+
+# Aurora MySQL (Pipeline 1 & 2 source)
+aurora:
+  host: ${AURORA_HOST:localhost}
+  port: 3306
+  database: zomato
+  username: ${DB_USER:zomato_app}
+  # Password should always be provided via environment variable
+  jdbc_url: "jdbc:mysql://${AURORA_HOST:localhost}:3306/zomato"
+
+# Kafka Configuration
+kafka:
+  cluster_1:
+    bootstrap_servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    description: "Primary Kafka cluster for CDC and batch events"
+  cluster_2:
+    bootstrap_servers: ${KAFKA_BOOTSTRAP_2:localhost:9093}
+    description: "Secondary Kafka cluster for real-time events to Druid"
+  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+  topics:
+    - name: orders
+      partitions: 64
+      replication_factor: 3
+    - name: users
+      partitions: 64
+      replication_factor: 3
+    - name: menu
+      partitions: 64
+      replication_factor: 3
+    - name: promo
+      partitions: 64
+      replication_factor: 3
+    - name: topics
+      partitions: 64
+      replication_factor: 3
+    - name: druid-ingestion-events
+      partitions: 64
+      replication_factor: 3
+    - name: order-spike-alerts
+      partitions: 8
+      replication_factor: 3
+
+# S3 Data Lake
+s3:
+  raw_bucket: ${S3_RAW_BUCKET:zomato-data-platform-dev-raw-data-lake}
+  processed_bucket: ${S3_PROCESSED_BUCKET:zomato-data-platform-dev-processed-data-lake}
+  checkpoints_bucket: ${S3_CHECKPOINTS_BUCKET:zomato-data-platform-dev-checkpoints}
+
+# Pipeline Configurations
+pipelines:
+  pipeline1_batch_etl:
+    schedule: "0 */6 * * *"
+    description: "Aurora MySQL → Sqoop → S3 (ORC)"
+    tables:
+      - orders
+      - users
+      - restaurants
+      - menu_items
+      - payments
+      - promotions
+
+  pipeline2_cdc:
+    description: "Aurora MySQL → Debezium → Kafka → Flink → Iceberg/S3"
+    debezium_connect_url: ${KAFKA_CONNECT_URL:http://localhost:8083}
+    flink_parallelism: 32
+    checkpoint_interval_ms: 60000
+
+  pipeline3_dynamodb_streams:
+    schedule: "@hourly"
+    description: "DynamoDB → Streams → S3 JSON → Spark (EMR) → ORC"
+    emr_cluster_id: ${EMR_CLUSTER_ID:}
+    spark_config:
+      dynamic_allocation: true
+      orc_compression: snappy
+
+  pipeline4_realtime_events:
+    description: "App Events → Kafka → Flink → S3 + Druid"
+    flink_parallelism: 64
+    checkpoint_interval_ms: 30000
+    druid_datasource: zomato_realtime_events
+
+# Trino Configuration
+trino:
+  clusters:
+    adhoc:
+      host: ${TRINO_ADHOC_HOST:localhost}
+      port: 8080
+      workers: 10
+    etl:
+      host: ${TRINO_ETL_HOST:localhost}
+      port: 8080
+      workers: 20
+    reporting:
+      host: ${TRINO_REPORTING_HOST:localhost}
+      port: 8080
+      workers: 8
+
+# Druid Configuration
+druid:
+  coordinator_url: ${DRUID_COORDINATOR_URL:http://localhost:8081}
+  broker_url: ${DRUID_BROKER_URL:http://localhost:8888}
+  datasources:
+    - zomato_realtime_events
+
+# Monitoring
+monitoring:
+  cloudwatch_namespace: zomato-data-platform
+  alert_sns_topic: ${ALERT_SNS_TOPIC:}
+  sla:
+    pipeline1_max_lag_hours: 7
+    pipeline2_max_lag_minutes: 10
+    pipeline3_max_lag_hours: 2
+    pipeline4_max_lag_minutes: 5
+    druid_query_p99_ms: 5000
+    kafka_max_consumer_lag: 1000000

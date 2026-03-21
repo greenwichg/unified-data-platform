@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "MenuItem",
+  "namespace": "com.zomato.events",
+  "doc": "Menu item event schema for the menu Kafka topic",
+  "fields": [
+    {"name": "item_id", "type": "string"},
+    {"name": "restaurant_id", "type": "string"},
+    {"name": "name", "type": "string"},
+    {"name": "description", "type": ["null", "string"], "default": null},
+    {"name": "category", "type": "string"},
+    {"name": "cuisine_type", "type": "string"},
+    {"name": "price", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "is_vegetarian", "type": "boolean"},
+    {"name": "is_available", "type": "boolean", "default": true},
+    {"name": "preparation_time_mins", "type": "int"},
+    {"name": "rating", "type": ["null", "float"], "default": null},
+    {"name": "total_orders", "type": "long", "default": 0},
+    {"name": "image_url", "type": ["null", "string"], "default": null},
+    {"name": "event_type", "type": "string"},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

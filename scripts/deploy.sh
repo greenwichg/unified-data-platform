@@ -1,0 +1,100 @@
+#!/bin/bash
+###############################################################################
+# Deployment Script for Zomato Data Platform
+# Deploys infrastructure and pipeline components
+###############################################################################
+
+set -euo pipefail
+
+ENVIRONMENT="${1:-dev}"
+ACTION="${2:-plan}"
+REGION="${AWS_REGION:-us-east-1}"
+
+echo "=============================================="
+echo "Zomato Data Platform Deployment"
+echo "Environment: $ENVIRONMENT"
+echo "Action:      $ACTION"
+echo "Region:      $REGION"
+echo "=============================================="
+
+TERRAFORM_DIR="terraform/environments/$ENVIRONMENT"
+SCRIPTS_DIR="scripts"
+
+# Validate environment
+if [[ ! -d "$TERRAFORM_DIR" ]]; then
+    echo "ERROR: Environment '$ENVIRONMENT' not found at $TERRAFORM_DIR"
+    exit 1
+fi
+
+case "$ACTION" in
+    plan)
+        echo ""
+        echo ">>> Running Terraform Plan..."
+        cd "$TERRAFORM_DIR"
+        terraform init -upgrade
+        terraform plan -out=tfplan
+        echo "Plan saved to tfplan. Run with 'apply' to execute."
+        ;;
+
+    apply)
+        echo ""
+        echo ">>> Running Terraform Apply..."
+        cd "$TERRAFORM_DIR"
+        terraform init -upgrade
+        terraform apply -auto-approve
+        echo ""
+        echo ">>> Infrastructure deployed!"
+        echo ""
+        echo ">>> Creating Kafka topics..."
+        bash "../../$SCRIPTS_DIR/create-kafka-topics.sh"
+        echo ""
+        echo ">>> Deploying Debezium connectors..."
+        python3 "../../pipelines/pipeline2_cdc/src/debezium_connector.py"
+        echo ""
+        echo "Deployment complete!"
+        ;;
+
+    destroy)
+        echo ""
+        echo "WARNING: This will destroy all infrastructure in $ENVIRONMENT!"
+        read -r -p "Are you sure? (yes/no): " confirm
+        if [[ "$confirm" == "yes" ]]; then
+            cd "$TERRAFORM_DIR"
+            terraform destroy -auto-approve
+        else
+            echo "Aborted."
+        fi
+        ;;
+
+    local-up)
+        echo ""
+        echo ">>> Starting local development environment..."
+        docker-compose up -d
+        echo ""
+        echo "Services starting up. Access:"
+        echo "  Kafka:           localhost:9092"
+        echo "  Schema Registry: localhost:8081"
+        echo "  Kafka Connect:   localhost:8083"
+        echo "  Flink UI:        localhost:8084"
+        echo "  Trino:           localhost:8085"
+        echo "  Druid:           localhost:8888"
+        echo "  Airflow:         localhost:8080 (admin/admin)"
+        echo "  Superset:        localhost:8088"
+        echo "  MinIO Console:   localhost:9001 (minioadmin/minioadmin)"
+        echo "  MySQL:           localhost:3306"
+        ;;
+
+    local-down)
+        echo ""
+        echo ">>> Stopping local development environment..."
+        docker-compose down
+        ;;
+
+    *)
+        echo "Usage: $0 <environment> <action>"
+        echo ""
+        echo "Environments: dev, staging, prod"
+        echo "Actions:      plan, apply, destroy, local-up, local-down"
+        exit 1
+        ;;
+esac

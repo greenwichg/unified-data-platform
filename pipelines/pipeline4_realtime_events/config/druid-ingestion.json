@@ -1,0 +1,63 @@
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "consumerProperties": {
+        "bootstrap.servers": "${KAFKA_BOOTSTRAP_2}",
+        "group.id": "druid-realtime-ingestion"
+      },
+      "topic": "druid-ingestion-events",
+      "inputFormat": {
+        "type": "json",
+        "flattenSpec": {
+          "useFieldDiscovery": true,
+          "fields": []
+        }
+      },
+      "useEarliestOffset": false
+    },
+    "tuningConfig": {
+      "type": "kafka",
+      "maxRowsInMemory": 1000000,
+      "maxBytesInMemory": 536870912,
+      "maxRowsPerSegment": 5000000,
+      "maxTotalRows": 20000000,
+      "intermediatePersistPeriod": "PT10M",
+      "taskCount": 8,
+      "replicas": 2,
+      "taskDuration": "PT1H",
+      "completionTimeout": "PT30M"
+    },
+    "dataSchema": {
+      "dataSource": "zomato_realtime_events",
+      "timestampSpec": {
+        "column": "event_timestamp",
+        "format": "iso"
+      },
+      "dimensionsSpec": {
+        "dimensions": [
+          "event_id",
+          "event_type",
+          "source",
+          "user_id",
+          "city",
+          "order_id"
+        ]
+      },
+      "metricsSpec": [
+        {"type": "count", "name": "count"},
+        {"type": "doubleSum", "name": "total_revenue", "fieldName": "total_amount"},
+        {"type": "doubleMin", "name": "min_order_value", "fieldName": "total_amount"},
+        {"type": "doubleMax", "name": "max_order_value", "fieldName": "total_amount"},
+        {"type": "longSum", "name": "event_count", "fieldName": "event_count"},
+        {"type": "HLLSketchBuild", "name": "unique_users", "fieldName": "user_id", "lgK": 12}
+      ],
+      "granularitySpec": {
+        "segmentGranularity": "HOUR",
+        "queryGranularity": "MINUTE",
+        "rollup": true
+      }
+    }
+  }
+}

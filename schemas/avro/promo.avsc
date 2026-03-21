@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "Promotion",
+  "namespace": "com.zomato.events",
+  "doc": "Promotion event schema for the promo Kafka topic",
+  "fields": [
+    {"name": "promo_id", "type": "string"},
+    {"name": "promo_code", "type": "string"},
+    {"name": "description", "type": "string"},
+    {"name": "discount_type", "type": {
+      "type": "enum",
+      "name": "DiscountType",
+      "symbols": ["PERCENTAGE", "FLAT", "CASHBACK", "FREE_DELIVERY"]
+    }},
+    {"name": "discount_value", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "min_order_value", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "max_discount", "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}], "default": null},
+    {"name": "valid_from", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "valid_until", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "applicable_restaurants", "type": {"type": "array", "items": "string"}, "default": []},
+    {"name": "applicable_cities", "type": {"type": "array", "items": "string"}, "default": []},
+    {"name": "usage_count", "type": "long", "default": 0},
+    {"name": "max_usage", "type": "long"},
+    {"name": "is_active", "type": "boolean", "default": true},
+    {"name": "event_type", "type": "string"},
+    {"name": "event_timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

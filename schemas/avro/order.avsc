@@ -1,0 +1,50 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "com.zomato.events",
+  "doc": "Order event schema - used across all Kafka topics for order data",
+  "fields": [
+    {"name": "order_id", "type": "string", "doc": "Unique order identifier"},
+    {"name": "user_id", "type": "string", "doc": "User who placed the order"},
+    {"name": "restaurant_id", "type": "string", "doc": "Restaurant fulfilling the order"},
+    {"name": "status", "type": {
+      "type": "enum",
+      "name": "OrderStatus",
+      "symbols": ["PLACED", "CONFIRMED", "PREPARING", "READY", "PICKED_UP", "DELIVERING", "DELIVERED", "CANCELLED"]
+    }},
+    {"name": "items", "type": {
+      "type": "array",
+      "items": {
+        "type": "record",
+        "name": "OrderItem",
+        "fields": [
+          {"name": "item_id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "quantity", "type": "int"},
+          {"name": "unit_price", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+          {"name": "customizations", "type": {"type": "array", "items": "string"}, "default": []}
+        ]
+      }
+    }},
+    {"name": "subtotal", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "tax", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "delivery_fee", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "total_amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2}},
+    {"name": "payment_method", "type": "string"},
+    {"name": "delivery_address", "type": {
+      "type": "record",
+      "name": "Address",
+      "fields": [
+        {"name": "latitude", "type": "double"},
+        {"name": "longitude", "type": "double"},
+        {"name": "address_line", "type": "string"},
+        {"name": "city", "type": "string"},
+        {"name": "pincode", "type": "string"}
+      ]
+    }},
+    {"name": "created_at", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "updated_at", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "event_type", "type": "string", "doc": "CDC event type: INSERT, UPDATE, DELETE"},
+    {"name": "source_pipeline", "type": "string", "doc": "Pipeline that generated this event"}
+  ]
+}
