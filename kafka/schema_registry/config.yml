@@ -1,0 +1,68 @@
+# ============================================================================
+# Zomato Data Platform - Confluent Schema Registry Configuration
+# Manages Avro/Protobuf/JSON schemas for all Kafka topics
+# Deployed as 3-node cluster for high availability
+# ============================================================================
+
+# ----- Listeners -----
+listeners: http://0.0.0.0:8081
+host.name: schema-registry.zomato-data.internal
+
+# ----- Kafka Backend -----
+kafkastore.bootstrap.servers: PLAINTEXT://kafka1.zomato-data.internal:9092,PLAINTEXT://kafka2.zomato-data.internal:9092,PLAINTEXT://kafka3.zomato-data.internal:9092
+kafkastore.topic: _schemas
+kafkastore.topic.replication.factor: 3
+kafkastore.init.timeout.ms: 120000
+kafkastore.timeout.ms: 500
+
+# ----- Schema Compatibility -----
+# BACKWARD: new schema can read data written by old schema
+# This is the safest default for evolving schemas without breaking consumers
+compatibility: BACKWARD
+
+# Per-subject overrides can be set via REST API:
+#   PUT /config/{subject} {"compatibility": "FULL"}
+
+# ----- Leader Election -----
+# In multi-node deployment, only the leader handles writes
+leader.eligibility: true
+schema.registry.group.id: zomato-schema-registry
+
+# ----- Inter-instance Protocol -----
+schema.registry.inter.instance.protocol: http
+
+# ----- Schema Types -----
+# Enable support for multiple schema types
+schema.providers:
+  - AVRO
+  - PROTOBUF
+  - JSON
+
+# ----- Authentication -----
+# authentication.method: BASIC
+# authentication.realm: SchemaRegistryProps
+# authentication.roles: admin,developer,readonly
+
+# ----- SSL (if needed) -----
+# ssl.keystore.location: /etc/schema-registry/ssl/keystore.jks
+# ssl.keystore.password: ${KEYSTORE_PASSWORD}
+# ssl.truststore.location: /etc/schema-registry/ssl/truststore.jks
+# ssl.truststore.password: ${TRUSTSTORE_PASSWORD}
+
+# ----- Access Control -----
+# resource.extension.class: io.confluent.kafka.schemaregistry.security.SchemaRegistrySecurityResourceExtension
+# confluent.schema.registry.authorizer.class: io.confluent.kafka.schemaregistry.security.authorizer.schemaregistryauthorizer.SchemaRegistryAuthorizer
+# confluent.schema.registry.auth.mechanism: JETTY_AUTH
+
+# ----- JMX / Metrics -----
+# jmx.port: 9585
+# Prometheus JMX exporter
+# SCHEMA_REGISTRY_JMX_OPTS: -javaagent:/opt/jmx_exporter/jmx_prometheus_javaagent.jar=9310:/opt/jmx_exporter/schema-registry.yml
+
+# ----- Performance -----
+# Cache schemas in memory for fast lookups
+schema.cache.size: 1000
+schema.cache.expiry.secs: 300
+
+# ----- Logging -----
+# debug: false (set via log4j.properties)

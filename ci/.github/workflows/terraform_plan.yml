@@ -1,0 +1,212 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform_plan.yml'
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+  pull-requests: write  # Comment plan output on PR
+
+concurrency:
+  group: terraform-plan-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: "1.6.6"
+  TF_IN_AUTOMATION: "true"
+  AWS_REGION: "ap-south-1"
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Detect which Terraform environments changed
+  # --------------------------------------------------------------------------
+  detect-changes:
+    name: Detect Changed Environments
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.filter.outputs.environments }}
+      modules_changed: ${{ steps.filter.outputs.modules_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed environments
+        id: filter
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- terraform/)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          ENVS="[]"
+          MODULES_CHANGED="false"
+
+          # Check if modules changed (affects all environments)
+          if echo "$CHANGED_FILES" | grep -q "terraform/modules/"; then
+            MODULES_CHANGED="true"
+            ENVS='["dev","staging","prod"]'
+          else
+            # Detect specific environment changes
+            ENV_LIST=()
+            for env in dev staging prod; do
+              if echo "$CHANGED_FILES" | grep -q "terraform/environments/${env}/"; then
+                ENV_LIST+=("\"${env}\"")
+              fi
+            done
+
+            if [ ${#ENV_LIST[@]} -gt 0 ]; then
+              ENVS="[$(IFS=,; echo "${ENV_LIST[*]}")]"
+            fi
+          fi
+
+          echo "environments=${ENVS}" >> "$GITHUB_OUTPUT"
+          echo "modules_changed=${MODULES_CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "Environments to plan: ${ENVS}"
+
+  # --------------------------------------------------------------------------
+  # Lint and validate
+  # --------------------------------------------------------------------------
+  validate:
+    name: Validate & Lint
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.environments != '[]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Install tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run tflint
+        run: |
+          cd terraform
+          for dir in modules/*/; do
+            echo "Linting ${dir}..."
+            tflint --chdir="${dir}" --minimum-failure-severity=warning || true
+          done
+
+      - name: Install checkov
+        run: pip install checkov
+
+      - name: Run checkov
+        run: |
+          checkov \
+            --directory terraform/ \
+            --framework terraform \
+            --quiet \
+            --compact \
+            --skip-check CKV_AWS_144,CKV_AWS_145,CKV2_AWS_6 \
+            --soft-fail
+
+  # --------------------------------------------------------------------------
+  # Terraform Plan (matrix over changed environments)
+  # --------------------------------------------------------------------------
+  plan:
+    name: Plan (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.environments != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.detect-changes.outputs.environments) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform
+          role-session-name: terraform-plan-${{ matrix.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform init \
+            -input=false \
+            -no-color
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -out=tfplan \
+            -detailed-exitcode \
+            2>&1 | tee plan_output.txt
+        continue-on-error: true
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: terraform/environments/${{ matrix.environment }}/tfplan
+          retention-days: 7
+
+      - name: Comment plan on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync(
+              'terraform/environments/${{ matrix.environment }}/plan_output.txt',
+              'utf8'
+            );
+
+            // Truncate if too long
+            const maxLen = 60000;
+            const truncated = planOutput.length > maxLen
+              ? planOutput.substring(0, maxLen) + '\n\n... (truncated)'
+              : planOutput;
+
+            const body = `### Terraform Plan: \`${{ matrix.environment }}\`
+
+            <details><summary>Show Plan Output</summary>
+
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            *Plan exit code: ${{ steps.plan.outcome }}*
+            *Triggered by: @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Fail if plan errored
+        if: steps.plan.outcome == 'failure'
+        run: exit 1

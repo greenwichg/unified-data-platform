@@ -1,0 +1,191 @@
+name: Spark / PySpark Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'pipelines/pipeline3_dynamodb_streams/**'
+      - 'pipelines/**/spark/**'
+      - 'tests/unit/spark/**'
+      - 'requirements.txt'
+      - '.github/workflows/spark_test.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'pipelines/pipeline3_dynamodb_streams/**'
+      - 'pipelines/**/spark/**'
+      - 'tests/unit/spark/**'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  SPARK_VERSION: "3.5.0"
+  JAVA_VERSION: "11"
+
+jobs:
+  test:
+    name: PySpark Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            pyspark==${{ env.SPARK_VERSION }} \
+            pytest \
+            pytest-cov \
+            pytest-xdist \
+            boto3 \
+            pyarrow \
+            moto[s3]
+
+          # Install project dependencies (skip optional ones)
+          pip install -r requirements.txt || true
+
+      - name: Run Spark unit tests
+        env:
+          SPARK_HOME: ""
+          PYSPARK_PYTHON: python
+          PYSPARK_DRIVER_PYTHON: python
+        run: |
+          pytest tests/unit/spark/ \
+            -v \
+            --tb=short \
+            --junitxml=test-results/spark-tests.xml \
+            --cov=pipelines/pipeline3_dynamodb_streams \
+            --cov-report=xml:coverage/spark-coverage.xml \
+            --cov-report=term-missing \
+            -x
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spark-test-results
+          path: test-results/
+          retention-days: 14
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spark-coverage
+          path: coverage/
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  # Run the full ORC converter with a local Spark session
+  # --------------------------------------------------------------------------
+  integration:
+    name: Spark Integration (Local Mode)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyspark==${{ env.SPARK_VERSION }} boto3 pyarrow pytest
+
+      - name: Generate test data
+        run: |
+          python -c "
+          import json, os
+          os.makedirs('/tmp/spark-test-input/orders/2024/01/01/12', exist_ok=True)
+          records = []
+          for i in range(100):
+              records.append(json.dumps({
+                  'event_id': f'evt-{i}',
+                  'event_name': 'INSERT',
+                  'event_source': 'aws:dynamodb',
+                  'table_name': 'orders',
+                  'approximate_creation_time': 1704067200 + i,
+                  'sequence_number': f'{i:020d}',
+                  'size_bytes': 256,
+                  'processed_at': '2024-01-01T12:00:00',
+                  'data': {
+                      'order_id': f'ord-{i:04d}',
+                      'user_id': f'usr-{i % 50:04d}',
+                      'restaurant_id': f'rest-{i % 20:04d}',
+                      'status': 'DELIVERED',
+                      'total_amount': str(200 + i * 10),
+                      'delivery_fee': '40',
+                      'payment_method': 'UPI',
+                      'city': ['Mumbai', 'Delhi', 'Bangalore'][i % 3],
+                      'latitude': '19.076',
+                      'longitude': '72.877',
+                      'created_at': '2024-01-01T10:00:00',
+                      'updated_at': '2024-01-01T12:00:00',
+                  }
+              }))
+          with open('/tmp/spark-test-input/orders/2024/01/01/12/data.json', 'w') as f:
+              f.write('\n'.join(records))
+          print(f'Generated {len(records)} test records')
+          "
+
+      - name: Run Spark ORC conversion (local mode)
+        env:
+          PYSPARK_PYTHON: python
+          PYSPARK_DRIVER_PYTHON: python
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'pipelines/pipeline3_dynamodb_streams/src')
+          from spark_orc_converter import create_spark_session, STREAM_RECORD_SCHEMA
+          from pyspark.sql import functions as F
+
+          spark = create_spark_session('test-orc-converter')
+          spark.sparkContext.setLogLevel('WARN')
+
+          df = spark.read.schema(STREAM_RECORD_SCHEMA).json('/tmp/spark-test-input/orders/2024/01/01/12/')
+          count = df.count()
+          print(f'Read {count} records')
+          assert count == 100, f'Expected 100 records, got {count}'
+
+          orders = df.filter(F.col('table_name') == 'orders')
+          print(f'Orders: {orders.count()}')
+
+          # Write ORC
+          orders.write.mode('overwrite').format('orc').save('/tmp/spark-test-output/orders')
+
+          # Read back ORC
+          orc_df = spark.read.format('orc').load('/tmp/spark-test-output/orders')
+          orc_count = orc_df.count()
+          print(f'ORC output: {orc_count} records')
+          assert orc_count == 100, f'Expected 100 ORC records, got {orc_count}'
+
+          spark.stop()
+          print('Integration test passed!')
+          "

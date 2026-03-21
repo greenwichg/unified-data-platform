@@ -1,0 +1,195 @@
+name: Airflow DAG Lint & Validate
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'airflow/**'
+      - 'tests/unit/airflow/**'
+      - '.github/workflows/airflow_lint.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'airflow/**'
+      - 'tests/unit/airflow/**'
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  AIRFLOW_VERSION: "2.8.1"
+  AIRFLOW_HOME: "/tmp/airflow"
+
+jobs:
+  lint:
+    name: Lint Airflow DAGs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Airflow and dependencies
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${{ env.AIRFLOW_VERSION }}/constraints-${{ env.PYTHON_VERSION }}.txt"
+          pip install "apache-airflow==${{ env.AIRFLOW_VERSION }}" \
+            --constraint "${CONSTRAINT_URL}"
+          pip install \
+            apache-airflow-providers-amazon \
+            pylint \
+            pytest
+
+      - name: Initialize Airflow DB
+        run: |
+          mkdir -p "$AIRFLOW_HOME"
+          airflow db init
+
+      # -----------------------------------------------------------------------
+      # Step 1: Parse check — verify all DAGs load without import errors
+      # -----------------------------------------------------------------------
+      - name: DAG Parse Check
+        run: |
+          echo "=== Checking DAG parse integrity ==="
+          ERRORS=0
+          for dag_file in airflow/dags/*.py; do
+            echo "Parsing: $dag_file"
+            if ! python -c "
+          import sys
+          sys.path.insert(0, 'airflow/dags')
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('dag_module', '$dag_file')
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          print('  OK')
+          " 2>&1; then
+              echo "  FAILED: $dag_file"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS DAG file(s) failed to parse"
+            exit 1
+          fi
+          echo "All DAGs parsed successfully."
+
+      # -----------------------------------------------------------------------
+      # Step 2: Import validation — use airflow CLI to list DAGs
+      # -----------------------------------------------------------------------
+      - name: DAG Import Validation
+        run: |
+          # Copy DAGs to Airflow's expected location
+          cp -r airflow/dags/* "$AIRFLOW_HOME/dags/" 2>/dev/null || mkdir -p "$AIRFLOW_HOME/dags" && cp -r airflow/dags/* "$AIRFLOW_HOME/dags/"
+
+          echo "=== Listing DAGs via Airflow CLI ==="
+          airflow dags list 2>&1 | tee /tmp/dag_list.txt
+
+          # Check for import errors
+          airflow dags list-import-errors 2>&1 | tee /tmp/dag_errors.txt
+
+          if grep -q "No data found" /tmp/dag_errors.txt || [ ! -s /tmp/dag_errors.txt ]; then
+            echo "No import errors found."
+          else
+            echo "::error::DAG import errors detected"
+            cat /tmp/dag_errors.txt
+            exit 1
+          fi
+
+      # -----------------------------------------------------------------------
+      # Step 3: Pylint on DAG files
+      # -----------------------------------------------------------------------
+      - name: Pylint DAGs
+        run: |
+          pylint airflow/dags/*.py \
+            --disable=C0114,C0115,C0116,C0103,W0611,E0401,R0801 \
+            --max-line-length=120 \
+            --fail-under=7.0 \
+            || true
+        continue-on-error: true
+
+      # -----------------------------------------------------------------------
+      # Step 4: Run DAG integrity unit tests
+      # -----------------------------------------------------------------------
+      - name: Run DAG Integrity Tests
+        run: |
+          pytest tests/unit/airflow/test_dag_integrity.py \
+            -v \
+            --tb=short \
+            --junitxml=test-results/airflow-tests.xml \
+            -x
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: airflow-test-results
+          path: test-results/
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  # Validate DAG schedules and dependencies
+  # --------------------------------------------------------------------------
+  validate-schedules:
+    name: Validate DAG Schedules
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${{ env.AIRFLOW_VERSION }}/constraints-${{ env.PYTHON_VERSION }}.txt"
+          pip install "apache-airflow==${{ env.AIRFLOW_VERSION }}" \
+            --constraint "${CONSTRAINT_URL}"
+          pip install apache-airflow-providers-amazon
+
+      - name: Validate DAG schedules
+        run: |
+          python -c "
+          import sys, importlib.util
+          from pathlib import Path
+
+          dag_dir = Path('airflow/dags')
+          sys.path.insert(0, str(dag_dir))
+
+          from airflow.models import DAG
+
+          expected = {
+              'pipeline1_batch_etl': '0 */6 * * *',
+              'pipeline3_dynamodb_spark': '@hourly',
+              'trino_etl_queries': '0 2 * * *',
+              'data_quality_checks': '0 */4 * * *',
+          }
+
+          errors = []
+          for py_file in dag_dir.glob('*.py'):
+              spec = importlib.util.spec_from_file_location(py_file.stem, str(py_file))
+              mod = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(mod)
+              for attr in dir(mod):
+                  obj = getattr(mod, attr)
+                  if isinstance(obj, DAG):
+                      dag_id = obj.dag_id
+                      schedule = str(obj.schedule_interval)
+                      if dag_id in expected and schedule != expected[dag_id]:
+                          errors.append(f'{dag_id}: expected {expected[dag_id]}, got {schedule}')
+                      print(f'{dag_id}: schedule={schedule} catchup={obj.catchup} max_active_runs={obj.max_active_runs}')
+
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+          print('All DAG schedules validated.')
+          "

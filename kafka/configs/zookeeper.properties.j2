@@ -1,0 +1,57 @@
+# ============================================================================
+# Zomato Data Platform - ZooKeeper Configuration
+# Template: Jinja2 (rendered by Ansible)
+# Ensemble: 5-node ZooKeeper cluster for Kafka coordination
+# ============================================================================
+
+# ----- Data Directories -----
+dataDir={{ zk_data_dir | default('/data/zookeeper') }}
+dataLogDir={{ zk_data_log_dir | default('/data/zookeeper-logs') }}
+
+# ----- Server Identity -----
+# myid is set in {{ zk_data_dir }}/myid
+# Corresponds to the server.N entry below
+
+# ----- Client Connections -----
+clientPort=2181
+maxClientCnxns=200
+admin.enableServer=true
+admin.serverPort=8080
+
+# ----- Tick and Session -----
+tickTime=2000
+initLimit=10
+syncLimit=5
+minSessionTimeout=4000
+maxSessionTimeout=60000
+
+# ----- Ensemble Members -----
+{% for node in zookeeper_nodes %}
+server.{{ loop.index }}={{ node.host }}:2888:3888
+{% endfor %}
+# Example:
+# server.1=zk1.zomato-data.internal:2888:3888
+# server.2=zk2.zomato-data.internal:2888:3888
+# server.3=zk3.zomato-data.internal:2888:3888
+# server.4=zk4.zomato-data.internal:2888:3888
+# server.5=zk5.zomato-data.internal:2888:3888
+
+# ----- Snapshots and Transaction Logs -----
+autopurge.snapRetainCount=5
+autopurge.purgeInterval=12
+snapCount=100000
+
+# ----- Performance Tuning -----
+preAllocSize=131072
+globalOutstandingLimit=1000
+forceSync=yes
+fsync.warningthresholdms=1000
+
+# ----- 4-letter word commands (for health checks) -----
+4lw.commands.whitelist=mntr,conf,ruok,srvr,stat,isro
+
+# ----- Metrics -----
+metricsProvider.className=org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider
+metricsProvider.httpHost=0.0.0.0
+metricsProvider.httpPort=7000
+metricsProvider.exportJvmInfo=true

@@ -1,0 +1,157 @@
+# =============================================================================
+# Zomato Data Platform - Airflow Configuration Template
+# =============================================================================
+# Copy this file to airflow.cfg and fill in environment-specific values.
+# Sensitive values should be injected via environment variables.
+#
+# Environment variable substitution: ${VAR_NAME} or ${VAR_NAME:-default}
+# =============================================================================
+
+[core]
+# The executor class to use. Production uses CeleryExecutor for distributed
+# task execution across multiple workers.
+executor = CeleryExecutor
+
+# The SQLAlchemy connection string to the Airflow metadata database.
+# Production uses Amazon RDS PostgreSQL.
+sql_alchemy_conn = postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_DB_HOST:-localhost}:${AIRFLOW_DB_PORT:-5432}/${AIRFLOW_DB_NAME:-airflow}
+
+# Maximum number of task instances allowed to run concurrently across all DAGs.
+parallelism = 32
+
+# Maximum number of task instances allowed to run concurrently within a single DAG.
+max_active_tasks_per_dag = 16
+
+# Maximum number of active DAG runs per DAG.
+max_active_runs_per_dag = 4
+
+# The folder where DAGs are stored.
+dags_folder = /opt/airflow/dags
+
+# The folder where Airflow plugins are stored.
+plugins_folder = /opt/airflow/plugins
+
+# Whether to load example DAGs shipped with Airflow.
+load_examples = False
+
+# Default timezone for the Airflow UI and scheduling.
+default_timezone = Asia/Kolkata
+
+# Secret key for signing session cookies and CSRF tokens.
+fernet_key = ${AIRFLOW_FERNET_KEY}
+
+# DAG file processing timeout in seconds.
+dagbag_import_timeout = 60
+
+# How often (in seconds) to scan the DAGs directory for new files.
+dag_file_processor_timeout = 120
+
+[celery]
+# The Celery broker URL. Production uses Amazon ElastiCache Redis.
+broker_url = redis://${REDIS_HOST:-localhost}:${REDIS_PORT:-6379}/0
+
+# The Celery result backend URL.
+result_backend = db+postgresql://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD}@${AIRFLOW_DB_HOST:-localhost}:${AIRFLOW_DB_PORT:-5432}/${AIRFLOW_DB_NAME:-airflow}
+
+# Number of processes each Celery worker spawns.
+worker_concurrency = 16
+
+# The default queue for tasks that don't specify a queue.
+default_queue = default
+
+# Task acknowledgment after completion (prevents re-execution on worker crash).
+worker_enable_remote_control = True
+
+# Celery task routes for priority queues.
+# High-priority tasks (SLA-bound pipelines) go to the 'critical' queue.
+# Default tasks go to the 'default' queue.
+
+[celery_broker_transport_options]
+visibility_timeout = 21600
+
+[webserver]
+# The base URL of the Airflow webserver.
+base_url = https://${AIRFLOW_HOST:-localhost}:8080
+
+# The port on which to run the webserver.
+web_server_port = 8080
+
+# Number of workers to spawn for the Gunicorn webserver.
+workers = 4
+
+# Worker timeout in seconds.
+worker_refresh_interval = 30
+
+# Default UI timezone.
+default_ui_timezone = Asia/Kolkata
+
+# Enable RBAC (role-based access control).
+rbac = True
+
+# Session lifetime in minutes.
+session_lifetime_minutes = 720
+
+# Expose configuration in the UI (disable in production).
+expose_config = False
+
+[scheduler]
+# How often the scheduler should check for new DAG runs to trigger (seconds).
+scheduler_heartbeat_sec = 5
+
+# Number of DAG files to parse per scheduler loop.
+min_file_process_interval = 30
+
+# Number of scheduler processes.
+num_runs = -1
+
+# Maximum number of DAG runs to create per loop.
+max_dagruns_to_create_per_loop = 10
+
+# How often to check for orphaned tasks or stale DAG runs.
+orphaned_tasks_check_interval = 300.0
+
+# Parsing processes for DAG files.
+parsing_processes = 4
+
+[logging]
+# The base log folder.
+base_log_folder = /opt/airflow/logs
+
+# Remote logging to S3 (production).
+remote_logging = True
+remote_log_conn_id = aws_default
+remote_base_log_folder = s3://${AIRFLOW_LOG_BUCKET:-zomato-airflow-logs}/logs
+
+# Log format.
+log_format = [%%(asctime)s] {%%(filename)s:%%(lineno)d} %%(levelname)s - %%(message)s
+
+[metrics]
+# StatsD metrics for monitoring.
+statsd_on = True
+statsd_host = ${STATSD_HOST:-localhost}
+statsd_port = 8125
+statsd_prefix = airflow
+
+[smtp]
+# SMTP configuration for email alerts.
+smtp_host = ${SMTP_HOST:-email-smtp.us-east-1.amazonaws.com}
+smtp_port = 587
+smtp_starttls = True
+smtp_ssl = False
+smtp_user = ${SMTP_USER}
+smtp_password = ${SMTP_PASSWORD}
+smtp_mail_from = airflow@zomato.com
+
+[api]
+# Authentication backend for the REST API.
+auth_backends = airflow.api.auth.backend.session
+
+# Enable experimental API.
+enable_experimental_api = False
+
+[operators]
+# Default owner for tasks.
+default_owner = data-engineering
+
+# Default retry delay in seconds.
+default_task_retries = 2

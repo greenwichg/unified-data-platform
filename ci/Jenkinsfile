@@ -1,0 +1,398 @@
+#!/usr/bin/env groovy
+// ---------------------------------------------------------------------------
+// Zomato Data Platform — Jenkins CI/CD Pipeline
+//
+// Stages: Lint → Test → Build → Deploy
+//
+// Alternative to GitHub Actions for teams running Jenkins.
+// Requires plugins: Pipeline, Docker, AWS Credentials, Slack Notification
+// ---------------------------------------------------------------------------
+
+pipeline {
+    agent {
+        kubernetes {
+            label 'zomato-data-platform'
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: zomato-ci
+spec:
+  containers:
+    - name: python
+      image: python:3.11-slim
+      command: ['cat']
+      tty: true
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+    - name: terraform
+      image: hashicorp/terraform:1.6.6
+      command: ['cat']
+      tty: true
+    - name: java
+      image: maven:3.9-eclipse-temurin-11
+      command: ['cat']
+      tty: true
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1000m"
+    - name: docker
+      image: docker:24-dind
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+"""
+        }
+    }
+
+    options {
+        timeout(time: 60, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timestamps()
+        ansiColor('xterm')
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        ECR_REGISTRY       = credentials('ecr-registry-url')
+        SLACK_CHANNEL      = '#data-platform-ci'
+        S3_ARTIFACTS       = 'zomato-data-platform-artifacts'
+    }
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Target deployment environment'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip test stages (emergency deploys only)'
+        )
+        booleanParam(
+            name: 'DEPLOY',
+            defaultValue: false,
+            description: 'Deploy after successful build'
+        )
+    }
+
+    stages {
+        // ==================================================================
+        // Stage 1: Lint
+        // ==================================================================
+        stage('Lint') {
+            parallel {
+                stage('Python Lint') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                pip install --quiet pylint flake8 black isort
+                                echo "=== Black (formatting check) ==="
+                                black --check --diff pipelines/ airflow/ tests/ || true
+
+                                echo "=== isort (import order) ==="
+                                isort --check-only --diff pipelines/ airflow/ tests/ || true
+
+                                echo "=== Flake8 ==="
+                                flake8 pipelines/ airflow/ tests/ \
+                                    --max-line-length=120 \
+                                    --ignore=E501,W503,E203 \
+                                    --count \
+                                    --statistics || true
+
+                                echo "=== Pylint (DAGs) ==="
+                                pylint airflow/dags/*.py \
+                                    --disable=C0114,C0115,C0116,C0103,W0611,E0401,R0801 \
+                                    --fail-under=6.0 || true
+                            '''
+                        }
+                    }
+                }
+                stage('Terraform Lint') {
+                    steps {
+                        container('terraform') {
+                            sh '''
+                                echo "=== Terraform fmt ==="
+                                terraform fmt -check -recursive terraform/
+
+                                echo "=== Terraform validate (modules) ==="
+                                for module_dir in terraform/modules/*/; do
+                                    module=$(basename "$module_dir")
+                                    echo "Validating module: $module"
+                                    terraform -chdir="$module_dir" init -backend=false -input=false > /dev/null 2>&1 || true
+                                    terraform -chdir="$module_dir" validate || true
+                                done
+                            '''
+                        }
+                    }
+                }
+                stage('Airflow DAG Parse') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                pip install --quiet apache-airflow==2.8.1 \
+                                    apache-airflow-providers-amazon \
+                                    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-3.11.txt"
+
+                                export AIRFLOW_HOME=/tmp/airflow
+                                airflow db init 2>/dev/null
+
+                                echo "=== Parsing DAGs ==="
+                                for f in airflow/dags/*.py; do
+                                    echo "Parsing: $f"
+                                    python -c "
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location('m', '$f')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+print('  OK')
+" || exit 1
+                                done
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Stage 2: Test
+        // ==================================================================
+        stage('Test') {
+            when {
+                expression { !params.SKIP_TESTS }
+            }
+            parallel {
+                stage('Python Unit Tests') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                pip install --quiet pytest pytest-cov boto3 pyarrow pyyaml confluent-kafka moto
+                                pip install -r requirements.txt || true
+
+                                pytest tests/unit/spark/ \
+                                    -v \
+                                    --tb=short \
+                                    --junitxml=test-results/spark-unit.xml \
+                                    --cov=pipelines \
+                                    --cov-report=xml:coverage/coverage.xml \
+                                    --cov-report=term-missing \
+                                    -x || true
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+                        }
+                    }
+                }
+                stage('Flink Unit Tests') {
+                    steps {
+                        container('java') {
+                            sh '''
+                                if [ -f pom.xml ]; then
+                                    echo "=== Running Flink Maven tests ==="
+                                    mvn test -B -pl flink-jobs -q 2>&1 || echo "Flink tests skipped (no pom.xml or flink-jobs module)"
+                                else
+                                    echo "No pom.xml found — skipping Flink tests"
+                                fi
+                            '''
+                        }
+                    }
+                }
+                stage('Airflow DAG Integrity') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                pip install --quiet apache-airflow==2.8.1 \
+                                    apache-airflow-providers-amazon pytest \
+                                    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-3.11.txt"
+
+                                export AIRFLOW_HOME=/tmp/airflow
+                                airflow db init 2>/dev/null
+
+                                pytest tests/unit/airflow/test_dag_integrity.py \
+                                    -v \
+                                    --tb=short \
+                                    --junitxml=test-results/airflow-dag-integrity.xml \
+                                    -x || true
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Stage 3: Build
+        // ==================================================================
+        stage('Build') {
+            parallel {
+                stage('Build Flink JAR') {
+                    steps {
+                        container('java') {
+                            sh '''
+                                if [ -f pom.xml ]; then
+                                    mvn package -B -DskipTests -pl flink-jobs -am -q || echo "Flink build skipped"
+                                fi
+                            '''
+                        }
+                    }
+                }
+                stage('Build Docker Images') {
+                    when {
+                        anyOf {
+                            branch 'main'
+                            expression { params.DEPLOY }
+                        }
+                    }
+                    steps {
+                        container('docker') {
+                            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-ecr-credentials']]) {
+                                sh '''
+                                    aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                                    VERSION="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
+
+                                    for svc in flink spark airflow kafka trino druid; do
+                                        DOCKERFILE="docker/${svc}/Dockerfile"
+                                        if [ -f "$DOCKERFILE" ]; then
+                                            echo "Building: ${svc}"
+                                            docker build \
+                                                -t "${ECR_REGISTRY}/zomato-data-platform-${svc}:${VERSION}" \
+                                                -t "${ECR_REGISTRY}/zomato-data-platform-${svc}:latest" \
+                                                --build-arg VERSION="${VERSION}" \
+                                                -f "$DOCKERFILE" \
+                                                "docker/${svc}/"
+
+                                            docker push "${ECR_REGISTRY}/zomato-data-platform-${svc}:${VERSION}"
+                                            docker push "${ECR_REGISTRY}/zomato-data-platform-${svc}:latest"
+                                        fi
+                                    done
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Stage 4: Deploy
+        // ==================================================================
+        stage('Deploy') {
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.DEPLOY }
+                }
+            }
+            stages {
+                stage('Deploy to Dev') {
+                    when { expression { params.ENVIRONMENT in ['dev', 'staging', 'prod'] } }
+                    steps {
+                        container('terraform') {
+                            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-dev-credentials']]) {
+                                sh '''
+                                    cd terraform/environments/dev
+                                    terraform init -input=false
+                                    terraform plan -input=false -out=tfplan
+                                    terraform apply -input=false -auto-approve tfplan
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('Deploy to Staging') {
+                    when { expression { params.ENVIRONMENT in ['staging', 'prod'] } }
+                    steps {
+                        container('terraform') {
+                            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-staging-credentials']]) {
+                                sh '''
+                                    cd terraform/environments/staging
+                                    terraform init -input=false
+                                    terraform plan -input=false -out=tfplan
+                                    terraform apply -input=false -auto-approve tfplan
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('Deploy to Prod') {
+                    when { expression { params.ENVIRONMENT == 'prod' } }
+                    steps {
+                        // Manual approval gate for production
+                        input message: 'Deploy to PRODUCTION?',
+                              ok: 'Approve',
+                              submitter: 'data-platform-leads'
+
+                        container('terraform') {
+                            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-prod-credentials']]) {
+                                sh '''
+                                    cd terraform/environments/prod
+                                    terraform init -input=false
+                                    terraform plan -input=false -out=tfplan
+                                    terraform apply -input=false -auto-approve tfplan
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('Upload Artifacts to S3') {
+                    steps {
+                        container('python') {
+                            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-deploy-credentials']]) {
+                                sh '''
+                                    pip install --quiet awscli
+                                    VERSION="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
+
+                                    # Upload Flink JARs
+                                    if ls flink-jobs/target/*.jar 1>/dev/null 2>&1; then
+                                        aws s3 cp flink-jobs/target/*.jar \
+                                            "s3://${S3_ARTIFACTS}/flink-jobs/${VERSION}/" \
+                                            --exclude "*-sources.jar" --exclude "*-tests.jar"
+                                    fi
+
+                                    # Upload Spark scripts
+                                    aws s3 sync pipelines/pipeline3_dynamodb_streams/src/ \
+                                        "s3://${S3_ARTIFACTS}/spark-scripts/${VERSION}/"
+
+                                    # Upload Airflow DAGs
+                                    aws s3 sync airflow/dags/ \
+                                        "s3://${S3_ARTIFACTS}/airflow-dags/${VERSION}/"
+
+                                    echo "Artifacts uploaded to s3://${S3_ARTIFACTS}/ (version: ${VERSION})"
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully."
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

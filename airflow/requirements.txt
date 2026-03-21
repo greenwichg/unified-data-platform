@@ -1,0 +1,41 @@
+# Zomato Data Platform - Airflow Provider Packages
+# Installed in the Airflow container / MWAA environment
+
+# Core Airflow (pinned to match MWAA version)
+apache-airflow==2.8.1
+
+# AWS providers (EMR, S3, DynamoDB, ECS)
+apache-airflow-providers-amazon==8.13.0
+
+# Trino provider and client
+apache-airflow-providers-trino==5.6.0
+trino[sqlalchemy]==0.327.0
+
+# Slack notifications
+apache-airflow-providers-slack==8.5.0
+
+# Celery executor (production)
+apache-airflow-providers-celery==3.5.1
+celery[redis]==5.3.6
+redis==5.0.1
+
+# Database backends
+apache-airflow-providers-postgres==5.8.0
+apache-airflow-providers-mysql==5.5.0
+
+# HTTP provider (for REST API calls to Flink, Druid, Debezium)
+apache-airflow-providers-http==4.8.0
+
+# SSH provider (for remote script execution)
+apache-airflow-providers-ssh==3.10.0
+
+# Data quality
+great-expectations==0.18.8
+
+# Kafka client (for lag monitoring sensors)
+confluent-kafka==2.3.0
+
+# General utilities
+boto3>=1.34.0
+requests>=2.31.0
+pyyaml>=6.0

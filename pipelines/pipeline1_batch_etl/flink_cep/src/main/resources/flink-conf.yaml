@@ -1,0 +1,58 @@
+# Pipeline 1 - Flink CEP Job Configuration
+# This file is loaded by Flink's configuration framework at startup.
+
+# -- Job settings --
+job.name: zomato-pipeline1-batch-cep
+job.parallelism: 32
+
+# -- Kafka source --
+kafka.bootstrap.servers: kafka-1:9092,kafka-2:9092,kafka-3:9092
+kafka.topic: orders
+kafka.consumer.group: pipeline1-batch-cep
+
+# -- S3 / Iceberg --
+s3.bucket: zomato-data-platform-prod-raw-data-lake
+iceberg.catalog.type: hive
+iceberg.warehouse: s3://zomato-data-platform-prod-raw-data-lake/pipeline1-batch-etl/iceberg
+
+# -- Checkpointing --
+checkpoint.dir: s3://zomato-data-platform-prod-checkpoints/flink/pipeline1
+execution.checkpointing.interval: 60000
+execution.checkpointing.mode: EXACTLY_ONCE
+execution.checkpointing.min-pause: 30000
+execution.checkpointing.timeout: 600000
+execution.checkpointing.max-concurrent-checkpoints: 1
+execution.checkpointing.tolerable-failed-checkpoints: 3
+execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+
+# -- State backend --
+state.backend: rocksdb
+state.backend.rocksdb.localdir: /tmp/flink-rocksdb
+state.backend.incremental: true
+state.backend.rocksdb.memory.managed: true
+state.backend.rocksdb.block.cache-size: 256mb
+state.backend.rocksdb.writebuffer.size: 128mb
+state.backend.rocksdb.writebuffer.count: 4
+
+# -- Restart strategy --
+restart-strategy: fixed-delay
+restart-strategy.fixed-delay.attempts: 10
+restart-strategy.fixed-delay.delay: 30s
+
+# -- Network and memory --
+taskmanager.memory.process.size: 8192m
+taskmanager.memory.managed.fraction: 0.4
+taskmanager.numberOfTaskSlots: 4
+taskmanager.network.memory.fraction: 0.1
+taskmanager.network.memory.min: 128mb
+taskmanager.network.memory.max: 512mb
+
+# -- Watermark and latency --
+pipeline.auto-watermark-interval: 200
+metrics.latency.interval: 5000
+
+# -- S3 filesystem --
+s3.access-key: ${AWS_ACCESS_KEY_ID}
+s3.secret-key: ${AWS_SECRET_ACCESS_KEY}
+s3.endpoint: s3.us-east-1.amazonaws.com
+s3.path.style.access: false
