@@ -146,7 +146,7 @@ def mock_kafka_consumer() -> MockKafkaConsumer:
 @pytest.fixture()
 def tmp_state_file(tmp_path) -> str:
     """Return a path to a temporary state file."""
-    return str(tmp_path / "sqoop_state.json")
+    return str(tmp_path / "spark_jdbc_state.json")
 
 
 @pytest.fixture()

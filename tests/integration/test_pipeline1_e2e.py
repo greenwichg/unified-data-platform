@@ -1,7 +1,7 @@
 """
-End-to-end test for Pipeline 1: Batch ETL (Aurora MySQL -> Sqoop -> S3 ORC).
+End-to-end test for Pipeline 1: Batch ETL (Aurora MySQL -> Spark JDBC -> Iceberg/ORC).
 
-Since Sqoop + Aurora are not available in the test environment, this test
+Since Spark + Aurora are not available in the test environment, this test
 validates the data-lake leg of the pipeline: ORC data written to S3 is
 queryable via Trino.
 
