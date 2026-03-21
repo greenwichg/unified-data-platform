@@ -47,7 +47,7 @@ variable "aurora_instance_count" {
 variable "kafka_instance_type" {
   description = "EC2 instance type for Kafka brokers"
   type        = string
-  default     = "r6g.2xlarge"
+  default     = "r8g.2xlarge"
 }
 
 variable "kafka_broker_count" {
@@ -67,13 +67,13 @@ variable "kafka_ebs_volume_size" {
 variable "emr_master_instance_type" {
   description = "Instance type for EMR master node"
   type        = string
-  default     = "r6g.xlarge"
+  default     = "r8g.xlarge"
 }
 
 variable "emr_core_instance_type" {
   description = "Instance type for EMR core nodes"
   type        = string
-  default     = "r6g.2xlarge"
+  default     = "r8g.2xlarge"
 }
 
 variable "emr_core_instance_count" {

@@ -26,7 +26,7 @@ variable "subnet_ids" {
 variable "instance_type" {
   description = "EC2 instance type for Kafka brokers"
   type        = string
-  default     = "r6g.4xlarge"
+  default     = "r8g.4xlarge"
 }
 
 variable "broker_count" {

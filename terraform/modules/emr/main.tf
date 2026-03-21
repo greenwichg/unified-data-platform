@@ -30,12 +30,12 @@ variable "s3_output_bucket" {
 
 variable "master_instance_type" {
   type    = string
-  default = "r6g.2xlarge"
+  default = "r8g.2xlarge"
 }
 
 variable "core_instance_type" {
   type    = string
-  default = "r6g.4xlarge"
+  default = "r8g.4xlarge"
 }
 
 variable "core_instance_count" {

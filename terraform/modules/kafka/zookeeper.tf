@@ -124,7 +124,7 @@ resource "aws_iam_instance_profile" "zookeeper" {
 resource "aws_launch_template" "zookeeper" {
   name_prefix   = "${var.project_name}-${var.environment}-zookeeper-"
   image_id      = data.aws_ami.amazon_linux.id
-  instance_type = "r6g.xlarge"
+  instance_type = "r8g.xlarge"
 
   iam_instance_profile {
     arn = aws_iam_instance_profile.zookeeper.arn

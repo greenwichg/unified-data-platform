@@ -67,13 +67,13 @@ variable "kafka_ebs_volume_size" {
 variable "emr_master_instance_type" {
   description = "Instance type for EMR master node"
   type        = string
-  default     = "r6g.4xlarge"
+  default     = "r8g.4xlarge"
 }
 
 variable "emr_core_instance_type" {
   description = "Instance type for EMR core nodes"
   type        = string
-  default     = "r6g.8xlarge"
+  default     = "r8g.8xlarge"
 }
 
 variable "emr_core_instance_count" {

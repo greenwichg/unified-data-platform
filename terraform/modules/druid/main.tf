@@ -153,27 +153,27 @@ resource "aws_iam_instance_profile" "druid" {
 locals {
   druid_nodes = {
     coordinator = {
-      instance_type = "r6g.2xlarge"
+      instance_type = "r8g.2xlarge"
       count         = 2
       volume_size   = 100
     }
     broker = {
-      instance_type = "r6g.4xlarge"
+      instance_type = "r8g.4xlarge"
       count         = 4
       volume_size   = 200
     }
     historical = {
-      instance_type = "r6g.8xlarge"
+      instance_type = "r8g.8xlarge"
       count         = 8
       volume_size   = 2000
     }
     middlemanager = {
-      instance_type = "r6g.4xlarge"
+      instance_type = "r8g.4xlarge"
       count         = 6
       volume_size   = 500
     }
     router = {
-      instance_type = "r6g.xlarge"
+      instance_type = "r8g.xlarge"
       count         = 2
       volume_size   = 50
     }
