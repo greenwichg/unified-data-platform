@@ -120,11 +120,11 @@ emr:
       instance_type: m6g.2xlarge
       count: 1
     core:
-      instance_type: r6g.4xlarge
+      instance_type: r8g.4xlarge
       count: 4
       ebs_volume_size_gb: 500
     task:
-      instance_type: r6g.2xlarge
+      instance_type: r8g.2xlarge
       count: 0
       max_count: 8
       spot_bid_percent: 60

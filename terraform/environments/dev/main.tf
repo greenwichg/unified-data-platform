@@ -90,7 +90,7 @@ module "kafka" {
   environment     = var.environment
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnet_ids
-  instance_type   = "r6g.2xlarge"
+  instance_type   = "r8g.2xlarge"
   broker_count    = 3
   ebs_volume_size = 500
   tags            = local.tags
@@ -116,8 +116,8 @@ module "emr" {
   subnet_id            = module.vpc.private_subnet_ids[0]
   s3_log_bucket        = module.s3.airflow_logs_bucket_name
   s3_output_bucket     = module.s3.raw_bucket_name
-  master_instance_type = "r6g.xlarge"
-  core_instance_type   = "r6g.2xlarge"
+  master_instance_type = "r8g.xlarge"
+  core_instance_type   = "r8g.2xlarge"
   core_instance_count  = 2
   tags                 = local.tags
 }
