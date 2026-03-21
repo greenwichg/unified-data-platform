@@ -5,6 +5,8 @@ A production-grade data platform processing 2M+ orders/day, 450M Kafka messages/
 
 ## Architecture Overview
 
+> **Full architecture diagram and details**: [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
+
 ### Four Data Pipelines
 
 | Pipeline | Source | Processing | Sink | Format |
