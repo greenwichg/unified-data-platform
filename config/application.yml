@@ -17,12 +17,19 @@ aurora:
 # Kafka Configuration
 kafka:
   cluster_1:
-    bootstrap_servers: ${KAFKA_BOOTSTRAP:localhost:9092}
-    description: "Primary Kafka cluster for CDC and batch events"
+    bootstrap_servers: ${MSK_BOOTSTRAP:b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098}
+    description: "Primary Amazon MSK cluster for CDC and batch events"
+    security_protocol: SASL_SSL
+    sasl_mechanism: AWS_MSK_IAM
   cluster_2:
-    bootstrap_servers: ${KAFKA_BOOTSTRAP_2:localhost:9093}
-    description: "Secondary Kafka cluster for real-time events to Druid"
-  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+    bootstrap_servers: ${MSK_BOOTSTRAP_2:b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098}
+    description: "Secondary Amazon MSK cluster for real-time events to Druid"
+    security_protocol: SASL_SSL
+    sasl_mechanism: AWS_MSK_IAM
+  schema_registry:
+    type: aws_glue
+    registry_name: ${GLUE_REGISTRY_NAME:zomato-schema-registry}
+    region: ${AWS_REGION:ap-south-1}
   topics:
     - name: orders
       partitions: 64

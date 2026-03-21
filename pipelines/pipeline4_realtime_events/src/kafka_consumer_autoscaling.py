@@ -452,12 +452,12 @@ def main() -> None:
     """Entry point for the EC2 auto-scaling Kafka consumer."""
     config = ConsumerConfig(
         source_bootstrap_servers=os.getenv(
-            "KAFKA_BOOTSTRAP",
-            "kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092",
+            "MSK_BOOTSTRAP",
+            "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
         ),
         target_bootstrap_servers=os.getenv(
-            "KAFKA_BOOTSTRAP_2",
-            "kafka-rt1.zomato-data.internal:9093,kafka-rt2.zomato-data.internal:9093,kafka-rt3.zomato-data.internal:9093",
+            "MSK_BOOTSTRAP_2",
+            "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
         ),
         source_topics=os.getenv("SOURCE_TOPICS", "orders,users,menu,promo").split(","),
         target_topic=os.getenv("TARGET_TOPIC", "druid-ingestion-events"),

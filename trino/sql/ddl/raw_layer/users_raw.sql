@@ -1,62 +1,63 @@
 -- ============================================================================
--- Zomato Data Platform - Raw Layer: Users
+-- Zomato Data Platform - Raw Layer: Users (Athena / Glue Data Catalog)
 -- Format: ORC | Partitioned by: dt (ingestion date)
 -- Source: Kafka topic 'users' via Flink sink (CDC from Aurora PostgreSQL)
+-- NOTE: Schema references use Glue Data Catalog (no catalog prefix needed).
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS raw.users_raw (
-    user_id             VARCHAR,
-    phone_number_hash   VARCHAR,        -- SHA-256 hashed for PII compliance
-    email_hash          VARCHAR,        -- SHA-256 hashed
-    user_name           VARCHAR,
+CREATE TABLE IF NOT EXISTS zomato_raw.users_raw (
+    user_id             STRING,
+    phone_number_hash   STRING,        -- SHA-256 hashed for PII compliance
+    email_hash          STRING,        -- SHA-256 hashed
+    user_name           STRING,
     registration_date   DATE,
-    city_id             INTEGER,
-    city_name           VARCHAR,
-    state               VARCHAR,
-    country             VARCHAR,
-    pincode             VARCHAR,
-    preferred_language  VARCHAR,
+    city_id             INT,
+    city_name           STRING,
+    state               STRING,
+    country             STRING,
+    pincode             STRING,
+    preferred_language  STRING,
     is_pro_member       BOOLEAN,
-    pro_tier            VARCHAR,        -- 'silver', 'gold', 'platinum'
+    pro_tier            STRING,        -- 'silver', 'gold', 'platinum'
     pro_expiry_date     DATE,
-    lifetime_order_count    INTEGER,
+    lifetime_order_count    INT,
     lifetime_gmv            DOUBLE,
     last_order_date         DATE,
     avg_order_value         DOUBLE,
-    preferred_payment       VARCHAR,
-    preferred_cuisine       ARRAY(VARCHAR),
-    dietary_preference      VARCHAR,    -- 'veg', 'non_veg', 'egg'
-    default_address         ROW(
-        lat                 DOUBLE,
-        lng                 DOUBLE,
-        pincode             VARCHAR,
-        locality            VARCHAR,
-        city                VARCHAR
-    ),
-    referral_code           VARCHAR,
-    referred_by             VARCHAR,
-    signup_source           VARCHAR,    -- 'organic', 'referral', 'campaign', 'social'
-    signup_platform         VARCHAR,    -- 'android', 'ios', 'web'
-    device_model            VARCHAR,
-    os_version              VARCHAR,
+    preferred_payment       STRING,
+    preferred_cuisine       ARRAY<STRING>,
+    dietary_preference      STRING,    -- 'veg', 'non_veg', 'egg'
+    default_address         STRUCT<
+        lat:                DOUBLE,
+        lng:                DOUBLE,
+        pincode:            STRING,
+        locality:           STRING,
+        city:               STRING
+    >,
+    referral_code           STRING,
+    referred_by             STRING,
+    signup_source           STRING,    -- 'organic', 'referral', 'campaign', 'social'
+    signup_platform         STRING,    -- 'android', 'ios', 'web'
+    device_model            STRING,
+    os_version              STRING,
     app_install_date        DATE,
     last_app_open_date      DATE,
     push_notification_enabled   BOOLEAN,
     email_opt_in                BOOLEAN,
     sms_opt_in                  BOOLEAN,
-    account_status          VARCHAR,    -- 'active', 'suspended', 'deleted', 'dormant'
+    account_status          STRING,    -- 'active', 'suspended', 'deleted', 'dormant'
     fraud_score             DOUBLE,
-    cdc_operation           VARCHAR,
+    cdc_operation           STRING,
     cdc_timestamp           TIMESTAMP,
     source_updated_at       TIMESTAMP,
     kafka_offset            BIGINT,
-    kafka_partition         INTEGER,
+    kafka_partition         INT,
     kafka_timestamp         TIMESTAMP,
     ingested_at             TIMESTAMP
 )
 WITH (
-    format           = 'ORC',
-    external_location = 's3a://zomato-data-lake-prod/raw/users/',
-    partitioned_by   = ARRAY['dt'],
-    orc_compression  = 'ZSTD'
+    table_type   = 'ICEBERG',
+    format       = 'ORC',
+    location     = 's3://zomato-data-lake-prod/raw/users/',
+    is_external  = false
 );

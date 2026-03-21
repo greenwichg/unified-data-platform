@@ -61,93 +61,103 @@ MAX_CHECKPOINT_FAILURE_COUNT = 3
 
 
 def check_flink_streaming_jobs(**context):
-    """Monitor Flink realtime streaming job health and checkpoints."""
-    flink_url = Variable.get("flink_rest_url")
+    """Monitor Flink realtime streaming job health via Amazon Managed Flink (kinesisanalyticsv2) API."""
+    app_name = Variable.get("managed_flink_realtime_app_name")
+    region = Variable.get("aws_region", default_var="ap-south-1")
     job_health = {}
     alerts = []
 
     try:
-        resp = requests.get(f"{flink_url}/jobs/overview", timeout=15)
-        resp.raise_for_status()
-        jobs = resp.json().get("jobs", [])
+        client = boto3.client("kinesisanalyticsv2", region_name=region)
+        response = client.describe_application(
+            ApplicationName=app_name,
+            IncludeAdditionalDetails=True,
+        )
+        app_detail = response["ApplicationDetail"]
 
-        realtime_jobs = [
-            j for j in jobs if "realtime" in j.get("name", "").lower()
-        ]
+        app_status = app_detail["ApplicationStatus"]
+        app_arn = app_detail["ApplicationARN"]
+        app_version = app_detail["ApplicationVersionId"]
+        runtime_env = app_detail.get("RuntimeEnvironment", "UNKNOWN")
+        create_time = str(app_detail.get("CreateTimestamp", ""))
+        update_time = str(app_detail.get("LastUpdateTimestamp", ""))
 
-        for job in realtime_jobs:
-            job_id = job["jid"]
-            job_name = job["name"]
-            job_state = job["state"]
+        # Extract Flink configuration details if available
+        app_config = app_detail.get("ApplicationConfigurationDescription", {})
+        flink_config = app_config.get("FlinkApplicationConfigurationDescription", {})
 
-            # Get checkpoint stats
-            try:
-                cp_resp = requests.get(
-                    f"{flink_url}/jobs/{job_id}/checkpoints", timeout=10
-                )
-                cp_data = cp_resp.json() if cp_resp.status_code == 200 else {}
-                cp_counts = cp_data.get("counts", {})
-                latest_cp = cp_data.get("latest", {}).get("completed")
+        checkpoint_config = flink_config.get("CheckpointConfigurationDescription", {})
+        parallelism_config = flink_config.get("ParallelismConfigurationDescription", {})
+        monitoring_config = flink_config.get("MonitoringConfigurationDescription", {})
 
-                checkpoint_info = {
-                    "completed": cp_counts.get("completed", 0),
-                    "failed": cp_counts.get("failed", 0),
-                    "in_progress": cp_counts.get("in_progress", 0),
-                    "latest_duration_ms": (
-                        latest_cp.get("duration") if latest_cp else None
-                    ),
-                    "latest_size_bytes": (
-                        latest_cp.get("state_size") if latest_cp else None
-                    ),
-                }
-            except Exception:
-                checkpoint_info = {"error": "Unable to fetch checkpoint data"}
+        checkpoint_info = {
+            "checkpointing_enabled": checkpoint_config.get("CheckpointingEnabled", False),
+            "checkpoint_interval_ms": checkpoint_config.get("CheckpointInterval", 0),
+            "min_pause_ms": checkpoint_config.get("MinPauseBetweenCheckpoints", 0),
+        }
 
-            # Get backpressure
-            try:
-                vertices_resp = requests.get(
-                    f"{flink_url}/jobs/{job_id}", timeout=10
-                )
-                vertices = vertices_resp.json().get("vertices", [])
-                backpressured = [
-                    v["name"] for v in vertices
-                    if v.get("status") == "RUNNING"
-                    and v.get("metrics", {}).get("isBackPressured", False)
-                ]
-            except Exception:
-                backpressured = []
+        parallelism_info = {
+            "parallelism": parallelism_config.get("Parallelism", 0),
+            "parallelism_per_kpu": parallelism_config.get("ParallelismPerKPU", 0),
+            "current_parallelism": parallelism_config.get("CurrentParallelism", 0),
+            "auto_scaling_enabled": parallelism_config.get("AutoScalingEnabled", False),
+        }
 
-            job_health[job_name] = {
-                "job_id": job_id,
-                "state": job_state,
-                "duration_ms": job.get("duration"),
-                "checkpoints": checkpoint_info,
-                "backpressured_vertices": backpressured,
-            }
+        # Query CloudWatch for application metrics (checkpoint failures, etc.)
+        cloudwatch = boto3.client("cloudwatch", region_name=region)
+        try:
+            cw_response = cloudwatch.get_metric_statistics(
+                Namespace="AWS/KinesisAnalytics",
+                MetricName="lastCheckpointDuration",
+                Dimensions=[
+                    {"Name": "Application", "Value": app_name},
+                ],
+                StartTime=datetime.utcnow() - timedelta(minutes=15),
+                EndTime=datetime.utcnow(),
+                Period=300,
+                Statistics=["Average", "Maximum"],
+            )
+            checkpoint_duration_datapoints = cw_response.get("Datapoints", [])
+            if checkpoint_duration_datapoints:
+                latest_dp = sorted(checkpoint_duration_datapoints, key=lambda x: x["Timestamp"])[-1]
+                checkpoint_info["latest_duration_ms"] = latest_dp.get("Average")
+                checkpoint_info["max_duration_ms"] = latest_dp.get("Maximum")
+        except Exception:
+            checkpoint_info["cloudwatch_error"] = "Unable to fetch checkpoint metrics"
 
-            if job_state != "RUNNING":
-                alerts.append(f"{job_name}: state={job_state}")
+        job_health[app_name] = {
+            "application_arn": app_arn,
+            "status": app_status,
+            "version": app_version,
+            "runtime_environment": runtime_env,
+            "create_time": create_time,
+            "last_update_time": update_time,
+            "checkpoints": checkpoint_info,
+            "parallelism": parallelism_info,
+        }
 
-            if checkpoint_info.get("failed", 0) > MAX_CHECKPOINT_FAILURE_COUNT:
-                alerts.append(
-                    f"{job_name}: {checkpoint_info['failed']} checkpoint failures"
-                )
+        if app_status != "RUNNING":
+            alerts.append(f"{app_name}: status={app_status}")
 
-            if backpressured:
-                alerts.append(
-                    f"{job_name}: backpressure on {len(backpressured)} vertices"
-                )
+        if monitoring_config.get("LogLevel") == "ERROR":
+            alerts.append(f"{app_name}: log level set to ERROR, may be masking issues")
 
-    except requests.exceptions.RequestException as e:
-        raise AirflowException(f"Cannot reach Flink REST API: {e}")
+    except client.exceptions.ResourceNotFoundException:
+        raise AirflowException(
+            f"Managed Flink application not found: {app_name}"
+        )
+    except Exception as e:
+        raise AirflowException(
+            f"Cannot query Managed Flink application {app_name}: {e}"
+        )
 
     context["ti"].xcom_push(key="job_health", value=job_health)
     context["ti"].xcom_push(key="flink_alerts", value=alerts)
 
     if alerts:
-        print(f"Flink alerts: {alerts}")
+        print(f"Managed Flink alerts: {alerts}")
     else:
-        print(f"All {len(realtime_jobs)} realtime Flink jobs healthy")
+        print(f"Managed Flink realtime application '{app_name}' is healthy (status={app_status})")
 
     return job_health
 

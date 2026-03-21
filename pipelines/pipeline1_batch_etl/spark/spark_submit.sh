@@ -115,8 +115,9 @@ spark-submit \
     --conf spark.sql.orc.enableVectorizedReader=true \
     --conf spark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.InstanceProfileCredentialsProvider \
     --conf spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.iceberg.type=hive \
-    --conf spark.sql.catalog.iceberg.uri=thrift://hive-metastore.zomato-data.internal:9083 \
+    --conf spark.sql.catalog.iceberg.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.iceberg.warehouse=s3://zomato-data-platform-prod-raw-data-lake/iceberg \
+    --conf spark.sql.catalog.iceberg.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     "${PIPELINE_DIR}/src/batch_etl.py" \
     --jdbc-url "${AURORA_JDBC_URL}" \

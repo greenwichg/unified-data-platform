@@ -87,8 +87,9 @@ destination:
     enabled: true
     catalog: iceberg
     database: zomato_raw
-    warehouse: "s3a://${S3_RAW_BUCKET}/iceberg"
-    metastore_uri: "thrift://hive-metastore.zomato-data.internal:9083"
+    warehouse: "s3://${S3_RAW_BUCKET}/iceberg"
+    catalog_impl: "org.apache.iceberg.aws.glue.GlueCatalog"
+    io_impl: "org.apache.iceberg.aws.s3.S3FileIO"
     table_properties:
       format-version: "2"
       write.format.default: orc
