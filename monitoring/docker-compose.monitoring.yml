@@ -234,9 +234,11 @@ services:
     container_name: zomato-kafka-exporter
     restart: unless-stopped
     command:
-      - --kafka.server=kafka-broker-1:9092
-      - --kafka.server=kafka-broker-2:9092
-      - --kafka.server=kafka-broker-3:9092
+      - --kafka.server=b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098
+      - --kafka.server=b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098
+      - --kafka.server=b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098
+      - --sasl.enabled
+      - --sasl.mechanism=AWS_MSK_IAM
       - --topic.filter=.*
       - --group.filter=.*
       - --log.level=info

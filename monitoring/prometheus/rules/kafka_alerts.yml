@@ -20,7 +20,7 @@ groups:
           runbook_url: https://runbooks.zomato.internal/kafka/broker-down
 
       - alert: KafkaInsufficientBrokers
-        expr: count(up{job="kafka"} == 1) < 3
+        expr: count(up{job="msk-broker"} == 1) < 3
         for: 2m
         labels:
           severity: critical

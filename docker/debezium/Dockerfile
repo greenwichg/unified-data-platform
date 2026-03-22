@@ -24,22 +24,34 @@ RUN mkdir -p /kafka/connect/avro-converter && \
     curl -sL "https://repo1.maven.org/maven2/org/apache/avro/avro/1.11.3/avro-1.11.3.jar" \
         -o /kafka/connect/avro-converter/avro-1.11.3.jar
 
+# Install AWS MSK IAM Auth library for MSK connectivity
+RUN mkdir -p /kafka/connect/msk-iam-auth && \
+    curl -sL "https://github.com/aws/aws-msk-iam-auth/releases/download/v2.0.3/aws-msk-iam-auth-2.0.3-all.jar" \
+        -o /kafka/connect/msk-iam-auth/aws-msk-iam-auth-2.0.3-all.jar
+
+# Install AWS Glue Schema Registry libraries for Glue Schema Registry integration
+RUN mkdir -p /kafka/connect/glue-schema-registry && \
+    curl -sL "https://repo1.maven.org/maven2/software/amazon/glue/schema-registry-kafkaconnect-converter/1.1.19/schema-registry-kafkaconnect-converter-1.1.19.jar" \
+        -o /kafka/connect/glue-schema-registry/schema-registry-kafkaconnect-converter-1.1.19.jar
+
 # Install SMT (Single Message Transforms) for data enrichment
 RUN mkdir -p /kafka/connect/transforms
 
 # Environment defaults for local development
 ENV GROUP_ID=zomato-connect \
-    BOOTSTRAP_SERVERS=kafka-1:29092 \
+    BOOTSTRAP_SERVERS=b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098 \
     CONFIG_STORAGE_TOPIC=debezium-configs \
     OFFSET_STORAGE_TOPIC=debezium-offsets \
     STATUS_STORAGE_TOPIC=debezium-status \
-    CONFIG_STORAGE_REPLICATION_FACTOR=1 \
-    OFFSET_STORAGE_REPLICATION_FACTOR=1 \
-    STATUS_STORAGE_REPLICATION_FACTOR=1 \
-    KEY_CONVERTER=io.confluent.connect.avro.AvroConverter \
-    VALUE_CONVERTER=io.confluent.connect.avro.AvroConverter \
-    CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081 \
-    CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081 \
+    CONFIG_STORAGE_REPLICATION_FACTOR=3 \
+    OFFSET_STORAGE_REPLICATION_FACTOR=3 \
+    STATUS_STORAGE_REPLICATION_FACTOR=3 \
+    CONNECT_SECURITY_PROTOCOL=SASL_SSL \
+    CONNECT_SASL_MECHANISM=AWS_MSK_IAM \
+    CONNECT_SASL_JAAS_CONFIG="software.amazon.msk.auth.iam.IAMLoginModule required;" \
+    CONNECT_SASL_CLIENT_CALLBACK_HANDLER_CLASS=software.amazon.msk.auth.iam.IAMClientCallbackHandler \
+    KEY_CONVERTER=com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter \
+    VALUE_CONVERTER=com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter \
     CONNECT_INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter \
     CONNECT_INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter \
     KAFKA_HEAP_OPTS="-Xmx512m -Xms256m" \
