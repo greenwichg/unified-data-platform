@@ -1,6 +1,6 @@
 ###############################################################################
 # Aurora MySQL Module - Primary transactional database
-# Source for Pipeline 1 (Sqoop) and Pipeline 2 (Debezium CDC)
+# Source for Pipeline 1 (Spark JDBC) and Pipeline 2 (Debezium CDC)
 ###############################################################################
 
 variable "project_name" {

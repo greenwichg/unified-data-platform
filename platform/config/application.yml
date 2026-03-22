@@ -63,7 +63,7 @@ s3:
 pipelines:
   pipeline1_batch_etl:
     schedule: "0 */6 * * *"
-    description: "Aurora MySQL → Sqoop → S3 (ORC)"
+    description: "Aurora MySQL → Spark JDBC → Iceberg/ORC → S3"
     tables:
       - orders
       - users

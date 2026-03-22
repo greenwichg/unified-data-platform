@@ -115,7 +115,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake_processed" {
 # ---------- Pipeline-specific prefixes (created as objects) ----------
 resource "aws_s3_object" "pipeline_prefixes" {
   for_each = toset([
-    "pipeline1-batch-etl/sqoop-output/",
+    "pipeline1-batch-etl/spark-jdbc-output/",
     "pipeline1-batch-etl/orc/",
     "pipeline2-cdc/flink-output/",
     "pipeline2-cdc/iceberg/",

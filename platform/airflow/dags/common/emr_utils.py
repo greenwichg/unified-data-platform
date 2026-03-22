@@ -2,7 +2,7 @@
 Helper functions for EMR step submission and monitoring.
 
 Provides utilities for:
-  - Submitting Spark/Hive/Sqoop steps to an existing EMR cluster
+  - Submitting Spark/Hive steps to an existing EMR cluster
   - Monitoring step completion with configurable polling
   - Retrieving step logs from S3
   - Building common EMR step configurations

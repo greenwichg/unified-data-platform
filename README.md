@@ -11,10 +11,10 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 
 | Pipeline | Source | Processing | Sink | Format |
 |----------|--------|-----------|------|--------|
-| Pipeline 1 - Batch ETL | Aurora MySQL | Sqoop → S3 | MSK → Flink → S3 | ORC |
+| Pipeline 1 - Batch ETL | Aurora MySQL | Spark JDBC → S3 | Iceberg + ORC | ORC |
 | Pipeline 2 - CDC | Aurora MySQL | Debezium → MSK | Flink → S3 (Iceberg) | Avro/ORC |
 | Pipeline 3 - DynamoDB Streams | DynamoDB | Streams → S3 JSON | Spark (EMR) → S3 | ORC |
-| Pipeline 4 - Real-time Events | Microservices/Web/Mobile | Custom Producer → MSK | Flink → S3 + Druid | ORC |
+| Pipeline 4 - Real-time Events | Microservices/Web/Mobile | Custom Producer → MSK (2 clusters) | Flink → S3 + Druid | ORC |
 
 ### Query Layer
 - **Amazon Athena** (Trino-based, serverless): 250K+ queries/week, 2PB scanned, 3 Athena workgroups (Adhoc, ETL, Reporting)
@@ -28,7 +28,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 ```
 ├── platform/                        # Application code
 │   ├── pipelines/                   # Pipeline application code
-│   │   ├── pipeline1_batch_etl/     # Sqoop batch ETL
+│   │   ├── pipeline1_batch_etl/     # Spark JDBC batch ETL
 │   │   ├── pipeline2_cdc/          # Debezium CDC → Kafka → Flink
 │   │   ├── pipeline3_dynamodb_streams/ # DynamoDB → Spark
 │   │   └── pipeline4_realtime_events/  # App events → Kafka → Flink → Druid
@@ -54,10 +54,10 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| Message Bus | Amazon MSK | 450M msgs/min event streaming |
-| Stream Processing | Apache Flink | Complex event processing |
+| Message Bus | Amazon MSK (2 clusters) | 450M msgs/min event streaming |
+| Stream Processing | Amazon Managed Flink | Complex event processing |
 | Batch Processing | Apache Spark (EMR) | DynamoDB stream processing |
-| Batch ETL | Apache Sqoop | MySQL → S3 batch ingestion |
+| Batch ETL | Apache Spark JDBC | MySQL → Iceberg/ORC batch ingestion |
 | CDC | Debezium | MySQL change data capture |
 | Data Lake | S3 + Iceberg + ORC | Petabyte-scale storage |
 | Query Engine | Amazon Athena (Trino-based, serverless) | Federated SQL queries |

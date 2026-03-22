@@ -2,7 +2,7 @@
 #
 # Pipeline 1 - Spark JDBC Batch ETL
 # Imports tables from Aurora MySQL to Iceberg/ORC on S3 via Spark.
-# Replaces the legacy Sqoop-based import.
+# Uses Spark JDBC for partitioned reads from Aurora MySQL.
 #
 # Usage:
 #   ./spark_submit.sh [--table <table_name>] [--full-load] [--no-iceberg]

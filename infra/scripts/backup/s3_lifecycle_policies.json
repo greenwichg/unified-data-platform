@@ -4,7 +4,7 @@
       "ID": "raw-data-tiering",
       "Status": "Enabled",
       "Filter": {
-        "Prefix": "pipeline1-batch-etl/sqoop-output/"
+        "Prefix": "pipeline1-batch-etl/orc/"
       },
       "Transitions": [
         {

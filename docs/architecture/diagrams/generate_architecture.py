@@ -9,11 +9,12 @@ Produces: zomato_data_platform_architecture.png
 """
 
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import EC2, EC2AutoScaling, ECS, EMR, Lambda
-from diagrams.aws.database import Aurora, Dynamodb, RDS
+from diagrams.aws.analytics import Athena, ManagedStreamingForKafka
+from diagrams.aws.compute import EC2, EC2AutoScaling, ECS, EMR
+from diagrams.aws.database import Aurora, Dynamodb
+from diagrams.aws.integration import MQ
 from diagrams.aws.storage import S3
-from diagrams.onprem.analytics import Spark, Flink, Trino
-from diagrams.onprem.queue import Kafka
+from diagrams.onprem.analytics import Spark, Flink
 from diagrams.onprem.database import Druid
 
 
@@ -63,37 +64,36 @@ def main():
                 mobile = ECS("Mobile Backend")
 
         # ================================================================
-        # PIPELINE 1 - BATCH ETL
+        # PIPELINE 1 - BATCH ETL (Spark JDBC)
         # ================================================================
         with Cluster("Pipeline-1: Batch ETL"):
-            sqoop = EMR("Apache Sqoop\n(Amazon EMR)")
-            s3_raw_p1 = S3("S3 Raw\n(ORC)")
+            spark_jdbc = EMR("Spark JDBC\n(Amazon EMR)")
+            s3_raw_p1 = S3("S3 Raw\n(Iceberg + ORC)")
 
         # ================================================================
         # PIPELINE 2 - CDC
         # ================================================================
         with Cluster("Pipeline-2: CDC (Debezium)"):
-            with Cluster("Kafka Connect\n(Distributed)"):
-                worker_a = EC2("Worker-A")
-                worker_b = EC2("Worker-B")
-                worker_c = EC2("Worker-C")
+            with Cluster("Debezium on\nECS Fargate"):
+                debezium = ECS("Debezium\nConnectors")
 
         # ================================================================
-        # SHARED KAFKA CLUSTER (P1 + P2)
+        # AMAZON MSK CLUSTER 1 (Primary - P2 + P4)
         # ================================================================
-        with Cluster("Self-Hosted Kafka Cluster 1\n(Amazon EC2)"):
-            kafka1 = Kafka("Kafka Brokers")
+        with Cluster("Amazon MSK Cluster 1\n(Primary · IAM Auth)"):
+            msk1 = ManagedStreamingForKafka("MSK Brokers\n(9x kafka.r8g.4xlarge)")
             with Cluster("Topics"):
-                topic_menu = Kafka("menu")
-                topic_orders = Kafka("orders")
-                topic_promo = Kafka("promo")
-                topic_users = Kafka("users")
+                topic_menu = MQ("menu")
+                topic_orders = MQ("orders")
+                topic_promo = MQ("promo")
+                topic_users = MQ("users")
+                topic_generic = MQ("topics")
 
         # ================================================================
-        # FLINK CEP (P1 + P2)
+        # FLINK CDC (P2)
         # ================================================================
-        with Cluster("Stream Processing (P1 + P2)"):
-            flink_cep = Flink("Amazon Flink\n(CEP)")
+        with Cluster("Stream Processing (P2)"):
+            flink_cdc = Flink("Amazon Managed\nFlink (CDC)")
 
         # Iceberg + ORC output
         with Cluster("Curated Layer (P1 + P2)"):
@@ -113,60 +113,63 @@ def main():
         # ================================================================
         with Cluster("Pipeline-4: Real-time Events"):
             producer = EC2("Custom\nProducer")
-
-            with Cluster("Self-Hosted Kafka Cluster 2\n(Amazon EC2)"):
-                kafka2 = Kafka("Kafka Brokers")
-
-            flink_rt = Flink("Amazon Flink\n(Real-time)")
+            flink_rt = Flink("Amazon Managed\nFlink (Real-time)")
             s3_rt = S3("S3\n(ORC)")
+
+        # ================================================================
+        # AMAZON MSK CLUSTER 2 (Secondary - Druid ingestion)
+        # ================================================================
+        with Cluster("Amazon MSK Cluster 2\n(Secondary · Druid Ingestion)"):
+            msk2 = ManagedStreamingForKafka("MSK Brokers\n(6x kafka.r8g.2xlarge)")
 
         # ================================================================
         # DRUID PATH (P4)
         # ================================================================
         with Cluster("Real-time OLAP"):
-            kafka3 = Kafka("Kafka Cluster 3\n(Intermediate)")
-            ec2_as = EC2AutoScaling("EC2\nAuto-Scaling")
-            druid = Druid("Apache Druid\n(OLAP)")
+            ec2_as = EC2AutoScaling("EC2 Consumer\nFleet (R8g)")
+            druid = Druid("Apache Druid\n(R8g Instances)")
 
         # ================================================================
-        # QUERY LAYER - TRINO
+        # QUERY LAYER - ATHENA (serverless)
         # ================================================================
-        with Cluster("Trino Query Engine\n(ECS · R8g Instances)"):
-            trino_adhoc = Trino("Adhoc\nClusters")
-            trino_etl = Trino("ETL\nClusters")
-            trino_report = Trino("Reporting\nClusters")
+        with Cluster("Amazon Athena\n(Serverless · Trino-based)"):
+            athena_adhoc = Athena("Adhoc\nWorkgroup")
+            athena_etl = Athena("ETL\nWorkgroup")
+            athena_report = Athena("Reporting\nWorkgroup")
+
+        # ================================================================
+        # SERVING LAYER
+        # ================================================================
+        with Cluster("Serving Layer\n(ECS Fargate)"):
+            superset = ECS("Apache\nSuperset")
+            redash = ECS("Redash")
+            jupyter = ECS("JupyterHub")
 
         # ================================================================
         # CONNECTIONS
         # ================================================================
 
-        # Pipeline 1: Aurora → Sqoop → S3 → Kafka → Flink
-        aurora >> Edge(label="bulk import") >> sqoop
-        sqoop >> Edge(label="ORC") >> s3_raw_p1
-        s3_raw_p1 >> kafka1
+        # Pipeline 1: Aurora → Spark JDBC → S3 (Iceberg + ORC)
+        aurora >> Edge(label="Spark JDBC") >> spark_jdbc
+        spark_jdbc >> Edge(label="Iceberg\n+ ORC") >> s3_raw_p1
+        s3_raw_p1 >> s3_iceberg
 
-        # Pipeline 2: Aurora → Debezium Workers → Kafka
-        aurora >> Edge(label="binlog") >> worker_a
-        aurora >> worker_b
-        aurora >> worker_c
-        worker_a >> Edge(label="Avro") >> kafka1
-        worker_b >> kafka1
-        worker_c >> kafka1
+        # Pipeline 2: Aurora → Debezium (ECS) → MSK
+        aurora >> Edge(label="binlog") >> debezium
+        debezium >> Edge(label="Avro") >> msk1
 
-        # Kafka topics flow
-        kafka1 - topic_menu
-        kafka1 - topic_orders
-        kafka1 - topic_promo
-        kafka1 - topic_users
+        # MSK topics
+        msk1 - topic_menu
+        msk1 - topic_orders
+        msk1 - topic_promo
+        msk1 - topic_users
+        msk1 - topic_generic
 
-        # Kafka → Flink CEP
-        kafka1 >> Edge(label="Avro") >> flink_cep
+        # MSK Cluster 1 → Flink CDC
+        msk1 >> Edge(label="Avro") >> flink_cdc
 
-        # Flink feedback loop
-        flink_cep >> Edge(label="feedback\nloop", style="dashed") >> kafka1
-
-        # Flink → Iceberg → S3
-        flink_cep >> Edge(label="Iceberg\n+ ORC") >> s3_iceberg
+        # Flink CDC → Iceberg → S3
+        flink_cdc >> Edge(label="Iceberg\n+ ORC") >> s3_iceberg
 
         # Pipeline 3: DynamoDB → ECS → S3 JSON → Spark → S3 ORC
         dynamodb >> Edge(label="DynamoDB\nStream") >> ecs_stream
@@ -174,33 +177,42 @@ def main():
         s3_json >> emr_spark
         emr_spark >> Edge(label="ORC") >> s3_curated_p3
 
-        # Pipeline 4: Apps → Producer → Kafka → Flink
+        # Pipeline 4: Apps → Producer → MSK Cluster 1 → Flink
         microservices >> producer
         webapp >> producer
         mobile >> producer
-        producer >> kafka2
-        kafka2 >> flink_rt
+        producer >> msk1
+
+        # MSK Cluster 1 → Flink Real-time (dual output)
+        msk1 >> flink_rt
 
         # Flink dual output
         flink_rt >> Edge(label="ORC") >> s3_rt
-        flink_rt >> kafka3
+        flink_rt >> Edge(label="druid-ingestion\n-events") >> msk2
 
-        # Druid path
-        kafka3 >> ec2_as
+        # MSK Cluster 2 → EC2 Consumer Fleet → Druid
+        msk2 >> ec2_as
         ec2_as >> druid
 
-        # All S3 → Trino
-        s3_iceberg >> trino_adhoc
-        s3_iceberg >> trino_etl
-        s3_iceberg >> trino_report
+        # All S3 → Athena
+        s3_iceberg >> athena_adhoc
+        s3_iceberg >> athena_etl
+        s3_iceberg >> athena_report
 
-        s3_curated_p3 >> trino_adhoc
-        s3_curated_p3 >> trino_etl
-        s3_curated_p3 >> trino_report
+        s3_curated_p3 >> athena_adhoc
+        s3_curated_p3 >> athena_etl
+        s3_curated_p3 >> athena_report
 
-        s3_rt >> trino_adhoc
-        s3_rt >> trino_etl
-        s3_rt >> trino_report
+        s3_rt >> athena_adhoc
+        s3_rt >> athena_etl
+        s3_rt >> athena_report
+
+        # Serving layer connections
+        athena_adhoc >> superset
+        athena_adhoc >> redash
+        athena_adhoc >> jupyter
+        druid >> superset
+        druid >> redash
 
 
 if __name__ == "__main__":

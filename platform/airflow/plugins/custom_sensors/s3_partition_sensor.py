@@ -9,7 +9,7 @@ Example usage:
     wait_for_orders = S3PartitionSensor(
         task_id="wait_for_orders_partition",
         bucket="zomato-data-platform-prod-raw-data-lake",
-        prefix="pipeline1-batch-etl/sqoop-output/orders/{{ ds }}/",
+        prefix="pipeline1-batch-etl/orc/orders/{{ ds }}/",
         min_file_count=1,
         min_total_bytes=1024,
         aws_conn_id="aws_default",

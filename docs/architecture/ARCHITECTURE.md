@@ -4,17 +4,17 @@
 
 ### Data Pipeline-1: Batch ETL
 - **Source**: Aurora MySQL
-- **Ingestion**: Apache Sqoop on Amazon EMR bulk-imports tables to S3 as ORC
-- **Processing**: Data flows through Amazon MSK, then Apache Flink performs Complex Event Processing (CEP)
-- **Sink**: S3 data lake using ORC format with Apache Iceberg table format
-- **Feedback**: Flink CEP results feed back into Kafka for recursive pattern detection
+- **Ingestion**: Apache Spark JDBC on Amazon EMR reads tables via partitioned JDBC, applies transformations and data quality checks
+- **Sink**: S3 data lake using ORC format with Apache Iceberg table format (dual write: Iceberg primary, ORC secondary)
+- **Schedule**: Runs every 6 hours via Airflow on Amazon EMR
+- **Quality**: Built-in null checks, duplicate detection, configurable fail-on-error
 
 ### Data Pipeline-2: CDC (Change Data Capture)
 - **Source**: Aurora MySQL (binlog)
-- **Ingestion**: Kafka Debezium source connector in distributed mode (Worker-A, B, C)
+- **Ingestion**: Debezium MySQL connectors on ECS Fargate (distributed mode)
 - **Serialization**: Avro format with AWS Glue Schema Registry
-- **Topics**: `menu`, `promo`, `orders`, `users`
-- **Processing**: Amazon Flink consumes Avro from Amazon MSK, transforms, writes ORC to S3
+- **Topics**: `menu`, `promo`, `orders`, `users` on Amazon MSK
+- **Processing**: Amazon Managed Flink consumes Avro from MSK, transforms, writes ORC to S3
 - **Sink**: S3 with Iceberg table format
 
 ### Data Pipeline-3: DynamoDB Streams
@@ -25,10 +25,11 @@
 
 ### Data Pipeline-4: Real-time Events
 - **Sources**: Microservices, Web Application, Mobile
-- **Ingestion**: Custom Kafka Producer → Amazon MSK (topics: menu, promo, orders, users)
-- **Processing**: Amazon Flink with dual output:
+- **Ingestion**: Custom Kafka Producer → Amazon MSK Cluster 1 (topics: menu, promo, orders, users, topics)
+- **Processing**: Amazon Managed Flink with dual output:
   - **Path A**: Direct to S3 (ORC) for batch analytics via Amazon Athena
-  - **Path B**: To intermediate MSK topic → EC2 Auto-Scaling consumer → Apache Druid for millisecond OLAP queries
+  - **Path B**: To Amazon MSK Cluster 2 (`druid-ingestion-events`) → EC2 Auto-Scaling consumer fleet → Apache Druid for millisecond OLAP queries
+- **Two MSK Clusters**: Cluster 1 (9 brokers, event collection) and Cluster 2 (6 brokers, Druid ingestion buffer) for resource isolation and independent scaling
 
 ### Query Layer: Amazon Athena (Trino-based, serverless)
 - **Serverless (Athena)** — no infrastructure to manage
@@ -39,9 +40,22 @@
 - Metadata managed by **AWS Glue Data Catalog**
 
 ### Real-time OLAP: Apache Druid
-- Ingests from Amazon MSK via EC2 Auto-Scaling consumers
+- Ingests from Amazon MSK Cluster 2 via EC2 Auto-Scaling consumer fleet
 - Sub-second query response on 20B events/week
 - Deep storage on S3, segment caching on local SSD
+- Deployed on R8g instances (Coordinator, Broker, Historical, MiddleManager, Router)
+
+### Serving Layer
+- **Apache Superset**: Primary dashboarding platform (ECS Fargate + ElastiCache Redis)
+- **Redash**: Ad-hoc analytics tool (ECS Fargate + ElastiCache Redis)
+- **JupyterHub**: Data science notebooks (ECS Fargate, connects to Athena, Druid, S3)
+
+### Orchestration
+- **Amazon MWAA** (Managed Workflows for Apache Airflow): Pipeline scheduling and monitoring
+
+### Monitoring
+- **CloudWatch**: Dashboards, metric alarms (Kafka lag, Flink checkpoints, Druid latency)
+- **SNS**: Alert routing for SLA breaches
 
 ## Design Pattern Annotations
 

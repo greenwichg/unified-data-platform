@@ -1,5 +1,5 @@
 -- Zomato Database Schema
--- Source tables for Pipeline 1 (Sqoop) and Pipeline 2 (Debezium CDC)
+-- Source tables for Pipeline 1 (Spark JDBC) and Pipeline 2 (Debezium CDC)
 
 USE zomato;
 
