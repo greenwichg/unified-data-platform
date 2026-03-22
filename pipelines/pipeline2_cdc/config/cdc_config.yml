@@ -60,9 +60,9 @@ debezium:
     database_user: ${DB_USER}
     database_password_secret: "arn:aws:secretsmanager:ap-south-1:ACCOUNT_ID:secret:zomato/aurora/cdc-user"
     database_include_list: zomato
-    key_converter: io.confluent.connect.avro.AvroConverter
-    value_converter: io.confluent.connect.avro.AvroConverter
-    schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+    key_converter: com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter
+    value_converter: com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter
+    schema_registry_url: ${GLUE_SCHEMA_REGISTRY_ENDPOINT:https://glue.ap-south-1.amazonaws.com}
     decimal_handling_mode: string
     time_precision_mode: connect
     tombstones_on_delete: true
@@ -75,8 +75,10 @@ debezium:
 
 # ----- Kafka Topics -----
 kafka:
-  bootstrap_servers: ${KAFKA_BOOTSTRAP:kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092}
-  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+  bootstrap_servers: ${MSK_BOOTSTRAP:b-1.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098}
+  security_protocol: SASL_SSL
+  sasl_mechanism: AWS_MSK_IAM
+  schema_registry_url: ${GLUE_SCHEMA_REGISTRY_ENDPOINT:https://glue.ap-south-1.amazonaws.com}
 
   topics:
     orders:
@@ -139,7 +141,7 @@ flink:
 
 # ----- Sink: Iceberg on S3 -----
 iceberg:
-  catalog_type: hive
+  catalog_type: glue
   catalog_name: zomato_iceberg
   warehouse: "s3://${S3_PROCESSED_BUCKET:zomato-data-platform-prod-processed-data-lake}/pipeline2-cdc/iceberg"
   database: zomato_cdc

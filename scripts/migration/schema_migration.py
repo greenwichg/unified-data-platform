@@ -3,8 +3,13 @@ Database Schema Migration Utility for the Zomato Data Platform.
 
 Manages schema migrations across:
   - Aurora MySQL (source database)
-  - Hive Metastore (ORC/Parquet table definitions)
-  - Iceberg tables (via Trino)
+  - AWS Glue Data Catalog (table definitions, replaces Hive Metastore)
+  - Iceberg tables (via Athena; Trino retained for local dev)
+
+MIGRATION NOTE: Hive Metastore has been replaced by AWS Glue Data Catalog
+in production. Trino has been replaced by Amazon Athena (serverless).
+The 'trino' target is kept for local development; in production, use
+the 'athena' target which executes DDL via Athena/Glue.
 
 Features:
   - Sequential migration numbering
@@ -15,6 +20,7 @@ Features:
 
 Usage:
     python schema_migration.py migrate --target aurora --env dev
+    python schema_migration.py migrate --target athena --env prod
     python schema_migration.py rollback --target aurora --version 003
     python schema_migration.py status --target aurora
 """
@@ -208,7 +214,22 @@ class MigrationExecutor:
                 database=os.environ.get("DB_NAME", "zomato"),
                 autocommit=False,
             )
+        elif self.target == "athena":
+            import pyathena
+
+            return pyathena.connect(
+                region_name=os.environ.get("AWS_REGION", "us-east-1"),
+                work_group=os.environ.get("ATHENA_WORKGROUP", "zomato-etl"),
+                s3_staging_dir=os.environ.get(
+                    "ATHENA_OUTPUT_LOCATION",
+                    "s3://zomato-data-platform-athena-results/",
+                ),
+                catalog_name="AwsDataCatalog",
+                schema_name="zomato",
+            )
         elif self.target == "trino":
+            # NOTE: Trino target is for local development only.
+            # In production, use the 'athena' target instead.
             import trino
 
             return trino.dbapi.connect(
@@ -390,7 +411,7 @@ def main():
     migrate_parser.add_argument(
         "--target",
         required=True,
-        choices=["aurora", "trino"],
+        choices=["aurora", "athena", "trino"],
         help="Migration target",
     )
     migrate_parser.add_argument("--env", default="dev", help="Environment")

@@ -40,6 +40,8 @@ jobs:
           CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${{ env.AIRFLOW_VERSION }}/constraints-${{ env.PYTHON_VERSION }}.txt"
           pip install "apache-airflow==${{ env.AIRFLOW_VERSION }}" \
             --constraint "${CONSTRAINT_URL}"
+          # NOTE: apache-airflow-providers-amazon includes Athena operators
+          # which replace Trino operators in production.
           pip install \
             apache-airflow-providers-amazon \
             pylint \

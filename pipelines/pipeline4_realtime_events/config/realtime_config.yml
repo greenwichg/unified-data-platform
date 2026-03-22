@@ -16,8 +16,10 @@ pipeline:
 kafka:
   # Primary cluster: app events ingestion
   cluster_1:
-    bootstrap_servers: ${KAFKA_BOOTSTRAP:kafka1.zomato-data.internal:9092,kafka2.zomato-data.internal:9092,kafka3.zomato-data.internal:9092}
-    description: "Primary Kafka cluster for app event ingestion"
+    bootstrap_servers: ${MSK_BOOTSTRAP:b-1.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098}
+    security_protocol: SASL_SSL
+    sasl_mechanism: AWS_MSK_IAM
+    description: "Primary MSK cluster for app event ingestion"
     topics:
       - name: orders
         partitions: 64

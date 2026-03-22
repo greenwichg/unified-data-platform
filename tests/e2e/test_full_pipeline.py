@@ -104,8 +104,8 @@ class TestPipeline2E2E:
         from flink_cdc_processor import generate_flink_job_config, write_flink_job_config
 
         config = generate_flink_job_config(
-            kafka_bootstrap="kafka-1:9092,kafka-2:9092,kafka-3:9092",
-            schema_registry_url="http://schema-registry:8081",
+            kafka_bootstrap="b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098,b-2.msk-cluster.kafka.us-east-1.amazonaws.com:9098,b-3.msk-cluster.kafka.us-east-1.amazonaws.com:9098",
+            schema_registry_url="https://glue.us-east-1.amazonaws.com",
             s3_bucket="zomato-e2e-test-bucket",
             checkpoint_dir="s3://checkpoints/pipeline2",
         )
@@ -126,10 +126,10 @@ class TestPipeline2E2E:
             assert "{schema_registry_url}" not in stmt
             assert "{s3_bucket}" not in stmt
 
-        # Verify Kafka source SQL is well-formed
+        # Verify MSK source SQL is well-formed
         source_sql = loaded["sql_statements"]["create_kafka_source"]
-        assert "kafka-1:9092,kafka-2:9092,kafka-3:9092" in source_sql
-        assert "http://schema-registry:8081" in source_sql
+        assert "b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098,b-2.msk-cluster.kafka.us-east-1.amazonaws.com:9098,b-3.msk-cluster.kafka.us-east-1.amazonaws.com:9098" in source_sql
+        assert "https://glue.us-east-1.amazonaws.com" in source_sql
 
         # Verify Iceberg sink references correct bucket
         sink_sql = loaded["sql_statements"]["create_iceberg_orders_sink"]
@@ -207,8 +207,8 @@ class TestPipeline4E2E:
 
         # Generate Flink config
         flink_config = generate_flink_job_config(
-            kafka_bootstrap="kafka-1:9092",
-            kafka_bootstrap_2="kafka-2:9092",
+            kafka_bootstrap="b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098",
+            kafka_bootstrap_2="b-2.msk-cluster.kafka.us-east-1.amazonaws.com:9098",
             s3_bucket="zomato-e2e-test-bucket",
             checkpoint_dir="s3://checkpoints/pipeline4",
         )
@@ -222,7 +222,7 @@ class TestPipeline4E2E:
 
         # Generate Druid spec
         druid_spec = generate_druid_ingestion_spec(
-            kafka_bootstrap="kafka-2:9092",
+            kafka_bootstrap="b-2.msk-cluster.kafka.us-east-1.amazonaws.com:9098",
             datasource="zomato_e2e_test_events",
         )
 
@@ -242,7 +242,7 @@ class TestPipeline4E2E:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
 
         # Produce events of different types
         events = [
@@ -307,8 +307,8 @@ class TestCrossPipelineIntegration:
 
         bucket = "zomato-consistency-test"
 
-        p2_config = gen_p2("k:9092", "http://sr:8081", bucket, "s3://cp/p2")
-        p4_config = gen_p4("k:9092", "k2:9092", bucket, "s3://cp/p4")
+        p2_config = gen_p2("k:9098", "https://glue.us-east-1.amazonaws.com", bucket, "s3://cp/p2")
+        p4_config = gen_p4("k:9098", "k2:9098", bucket, "s3://cp/p4")
 
         # Pipeline 2 uses iceberg path
         assert f"s3://{bucket}/pipeline2-cdc/iceberg" in p2_config["iceberg"]["warehouse"]

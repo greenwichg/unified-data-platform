@@ -267,6 +267,8 @@ print('  OK')
 
                                     VERSION="${BUILD_NUMBER}-${GIT_COMMIT:0:8}"
 
+                                    # NOTE: kafka and trino images are for local dev only.
+                                    # Production uses Amazon MSK and Amazon Athena (serverless).
                                     for svc in flink spark airflow kafka trino druid; do
                                         DOCKERFILE="docker/${svc}/Dockerfile"
                                         if [ -f "$DOCKERFILE" ]; then

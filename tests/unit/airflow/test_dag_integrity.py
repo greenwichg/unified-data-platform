@@ -89,9 +89,9 @@ EXPECTED_DAGS = {
         "schedule": "@hourly",
         "tags_contain": ["pipeline3"],
     },
-    "trino_etl_queries": {
+    "athena_etl_queries": {
         "schedule": "0 2 * * *",
-        "tags_contain": ["trino"],
+        "tags_contain": ["athena"],
     },
     "data_quality_checks": {
         "schedule": "0 */4 * * *",
@@ -117,7 +117,7 @@ class TestDagDiscovery:
         expected = {
             "pipeline1_batch_etl_dag",
             "pipeline3_dynamodb_spark_dag",
-            "trino_etl_dag",
+            "athena_etl_dag",
             "data_quality_dag",
         }
         missing = expected - filenames

@@ -1,11 +1,11 @@
 """
-Unit tests for Pipeline 2 - CDC Processor (Kafka Avro -> Flink -> Iceberg).
+Unit tests for Pipeline 2 - CDC Processor (MSK Avro -> Flink -> Iceberg).
 
 Tests cover:
   - Flink SQL statement generation and template substitution
   - Schema evolution compatibility in Flink SQL definitions
-  - Kafka consumer configuration (offset management, group IDs)
-  - Avro-Confluent format configuration
+  - MSK (Amazon Managed Streaming for Kafka) consumer configuration (offset management, group IDs)
+  - Avro format configuration with AWS Glue Schema Registry
   - Iceberg sink configuration (upsert, ORC, partitioning)
   - Job config generation and file output
 """
@@ -167,8 +167,8 @@ class TestSchemaEvolution:
 # Job config generation tests
 # ---------------------------------------------------------------------------
 class TestGenerateFlinkJobConfig:
-    KAFKA_BOOTSTRAP = "kafka-1:9092,kafka-2:9092"
-    SCHEMA_REGISTRY = "http://schema-registry:8081"
+    KAFKA_BOOTSTRAP = "b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098,b-2.msk-cluster.kafka.us-east-1.amazonaws.com:9098"
+    SCHEMA_REGISTRY = "https://glue.us-east-1.amazonaws.com"
     S3_BUCKET = "zomato-test-bucket"
     CHECKPOINT_DIR = "s3://checkpoints/pipeline2"
 

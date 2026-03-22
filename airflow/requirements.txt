@@ -7,9 +7,9 @@ apache-airflow==2.8.1
 # AWS providers (EMR, S3, DynamoDB, ECS)
 apache-airflow-providers-amazon==8.13.0
 
-# Trino provider and client
-apache-airflow-providers-trino==5.6.0
-trino[sqlalchemy]==0.327.0
+# Amazon Athena support (included in amazon provider above)
+# Athena operators and hooks are part of apache-airflow-providers-amazon
+# No separate Athena provider package needed
 
 # Slack notifications
 apache-airflow-providers-slack==8.5.0
