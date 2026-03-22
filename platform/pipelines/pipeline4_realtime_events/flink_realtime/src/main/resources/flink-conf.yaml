@@ -1,0 +1,228 @@
+# ============================================================================
+# Pipeline 4 - Flink Real-time Events Job Configuration
+# NOTE: This application is managed by Amazon Managed Service for Apache
+# Flink. Infrastructure settings such as parallelism, checkpointing, and
+# resource allocation are controlled via Terraform
+# (terraform/modules/flink/main.tf). The values below are application-level
+# defaults.
+# ============================================================================
+
+# -- Job settings --
+job.name: zomato-pipeline4-realtime-events
+job.parallelism: 32
+
+# -- MSK (Amazon Managed Streaming for Kafka) source --
+kafka.bootstrap.servers: b-1.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098
+kafka.security.protocol: SASL_SSL
+kafka.sasl.mechanism: AWS_MSK_IAM
+kafka.topics: orders;users;menu;promo;topics
+kafka.consumer.group: flink-realtime-events
+
+# -- Secondary MSK cluster (Druid ingestion buffer) --
+kafka.bootstrap.servers.secondary: b-1.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098
+
+# -- S3 ORC sink --
+s3.bucket: zomato-data-platform-prod-processed-data-lake
+s3.output.path: pipeline4-realtime/flink-output
+s3.format: orc
+
+# ============================================================================
+# JobManager Configuration
+# ============================================================================
+jobmanager.memory.process.size: 4096m
+jobmanager.memory.heap.size: 3072m
+jobmanager.memory.off-heap.size: 512m
+jobmanager.memory.jvm-metaspace.size: 256m
+jobmanager.memory.jvm-overhead.min: 192m
+jobmanager.memory.jvm-overhead.max: 512m
+jobmanager.memory.jvm-overhead.fraction: 0.1
+jobmanager.execution.failover-strategy: region
+jobmanager.rpc.address: jobmanager
+jobmanager.rpc.port: 6123
+jobmanager.bind-host: 0.0.0.0
+
+# ============================================================================
+# TaskManager Configuration
+# ============================================================================
+taskmanager.memory.process.size: 8192m
+taskmanager.memory.framework.heap.size: 128m
+taskmanager.memory.task.heap.size: 4096m
+taskmanager.memory.managed.size: 2048m
+taskmanager.memory.managed.fraction: 0.4
+taskmanager.memory.task.off-heap.size: 512m
+taskmanager.memory.jvm-metaspace.size: 256m
+taskmanager.memory.jvm-overhead.min: 192m
+taskmanager.memory.jvm-overhead.max: 768m
+taskmanager.memory.jvm-overhead.fraction: 0.1
+taskmanager.numberOfTaskSlots: 4
+taskmanager.bind-host: 0.0.0.0
+taskmanager.host: taskmanager
+taskmanager.registration.timeout: 5 min
+
+# ============================================================================
+# Parallelism
+# ============================================================================
+parallelism.default: 8
+taskmanager.network.numberOfBuffers: 2048
+
+# ============================================================================
+# Network Buffers
+# ============================================================================
+taskmanager.network.memory.fraction: 0.1
+taskmanager.network.memory.min: 128mb
+taskmanager.network.memory.max: 512mb
+taskmanager.network.memory.buffers-per-channel: 2
+taskmanager.network.memory.floating-buffers-per-gate: 8
+taskmanager.network.memory.max-buffers-per-channel: 10
+taskmanager.network.request-backoff.initial: 100
+taskmanager.network.request-backoff.max: 10000
+taskmanager.network.netty.transport: epoll
+taskmanager.network.netty.server.numThreads: 4
+taskmanager.network.netty.client.numThreads: 4
+taskmanager.network.netty.sendReceiveBufferSize: 0
+taskmanager.network.sort-shuffle.min-buffers: 512
+
+# ============================================================================
+# Checkpointing (60s, exactly-once)
+# ============================================================================
+checkpoint.dir: s3://zomato-data-platform-prod-checkpoints/flink/pipeline4
+execution.checkpointing.interval: 60000
+execution.checkpointing.mode: EXACTLY_ONCE
+execution.checkpointing.min-pause: 30000
+execution.checkpointing.timeout: 600000
+execution.checkpointing.max-concurrent-checkpoints: 1
+execution.checkpointing.tolerable-failed-checkpoints: 3
+execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+execution.checkpointing.unaligned: true
+execution.checkpointing.unaligned.forced: false
+execution.checkpointing.alignment-timeout: 30000
+
+# Savepoint directory
+state.savepoints.dir: s3://zomato-data-platform-prod-checkpoints/flink/pipeline4/savepoints
+
+# ============================================================================
+# State Backend - RocksDB
+# ============================================================================
+state.backend: rocksdb
+state.backend.rocksdb.localdir: /tmp/flink-rocksdb
+state.backend.incremental: true
+state.backend.rocksdb.memory.managed: true
+state.backend.rocksdb.block.cache-size: 256mb
+state.backend.rocksdb.writebuffer.size: 128mb
+state.backend.rocksdb.writebuffer.count: 4
+state.backend.rocksdb.compaction.level.max-size-level-base: 320mb
+state.backend.rocksdb.compaction.style: LEVEL
+state.backend.rocksdb.thread.num: 4
+state.backend.rocksdb.log.level: INFO_LEVEL
+state.backend.rocksdb.log.max-file-size: 10mb
+state.backend.rocksdb.log.file-num: 4
+state.backend.rocksdb.timer-service.factory: ROCKSDB
+state.checkpoints.num-retained: 5
+
+# S3 state backend path
+state.checkpoints.dir: s3://zomato-data-platform-prod-checkpoints/flink/pipeline4/checkpoints
+
+# ============================================================================
+# Restart Strategy - Exponential Delay
+# ============================================================================
+restart-strategy: exponential-delay
+restart-strategy.exponential-delay.initial-backoff: 1s
+restart-strategy.exponential-delay.max-backoff: 300s
+restart-strategy.exponential-delay.backoff-multiplier: 2.0
+restart-strategy.exponential-delay.reset-backoff-threshold: 600s
+restart-strategy.exponential-delay.jitter-factor: 0.1
+
+# ============================================================================
+# Metrics Reporters - Prometheus
+# ============================================================================
+metrics.reporters: prom
+metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+metrics.reporter.prom.port: 9249
+metrics.reporter.prom.filter.includes: "*:gauge:*,*:counter:*,*:meter:*,*:histogram:*"
+
+# System-level metrics
+metrics.system-resource: true
+metrics.system-resource-probing-interval: 5000
+
+# Latency tracking
+metrics.latency.interval: 5000
+metrics.latency.granularity: operator
+
+# Scope formats for clean Prometheus metric names
+metrics.scope.jm: zomato.<host>.jobmanager
+metrics.scope.jm.job: zomato.<host>.jobmanager.<job_name>
+metrics.scope.tm: zomato.<host>.taskmanager.<tm_id>
+metrics.scope.tm.job: zomato.<host>.taskmanager.<tm_id>.<job_name>
+metrics.scope.task: zomato.<host>.taskmanager.<tm_id>.<job_name>.<task_name>.<subtask_index>
+metrics.scope.operator: zomato.<host>.taskmanager.<tm_id>.<job_name>.<operator_name>.<subtask_index>
+
+# ============================================================================
+# Web UI Settings
+# ============================================================================
+rest.port: 8081
+rest.address: 0.0.0.0
+rest.bind-address: 0.0.0.0
+web.submit.enable: true
+web.cancel.enable: true
+web.upload.dir: /opt/flink/upload
+web.tmpdir: /tmp/flink-web-ui
+web.refresh-interval: 3000
+web.backpressure.refresh-interval: 60000
+web.backpressure.num-samples: 50
+web.backpressure.delay-between-samples: 50
+web.checkpoints.history: 25
+web.history: 20
+web.log.path: /opt/flink/log
+
+# ============================================================================
+# Watermark and Pipeline
+# ============================================================================
+pipeline.auto-watermark-interval: 200
+pipeline.max-parallelism: 128
+pipeline.object-reuse: true
+pipeline.time-characteristic: EventTime
+
+# ============================================================================
+# S3 Filesystem
+# ============================================================================
+s3.access-key: ${AWS_ACCESS_KEY_ID}
+s3.secret-key: ${AWS_SECRET_ACCESS_KEY}
+s3.endpoint: s3.ap-south-1.amazonaws.com
+s3.path.style.access: false
+s3.entropy.key: _entropy_
+s3.entropy.length: 4
+fs.s3a.connection.maximum: 200
+fs.s3a.connection.timeout: 60000
+fs.s3a.attempts.maximum: 20
+fs.s3a.fast.upload: true
+fs.s3a.fast.upload.buffer: disk
+fs.s3a.multipart.size: 67108864
+fs.s3a.multipart.threshold: 134217728
+
+# ============================================================================
+# High Availability (ZooKeeper-based)
+# ============================================================================
+high-availability: zookeeper
+high-availability.zookeeper.quorum: zk-1:2181,zk-2:2181,zk-3:2181
+high-availability.zookeeper.path.root: /flink
+high-availability.cluster-id: /pipeline4-realtime-events
+high-availability.storageDir: s3://zomato-data-platform-prod-checkpoints/flink/pipeline4/ha
+
+# ============================================================================
+# Security
+# ============================================================================
+security.ssl.internal.enabled: true
+security.ssl.internal.keystore: /opt/flink/ssl/flink-keystore.jks
+security.ssl.internal.truststore: /opt/flink/ssl/flink-truststore.jks
+security.ssl.internal.keystore-password: ${FLINK_SSL_KEYSTORE_PASSWORD}
+security.ssl.internal.truststore-password: ${FLINK_SSL_TRUSTSTORE_PASSWORD}
+security.ssl.internal.key-password: ${FLINK_SSL_KEY_PASSWORD}
+
+# ============================================================================
+# Logging & Debugging
+# ============================================================================
+env.log.dir: /opt/flink/log
+env.log.max: 10
+env.java.opts: "-Dlog4j2.formatMsgNoLookups=true"
+env.java.opts.jobmanager: "-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled"
+env.java.opts.taskmanager: "-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ParallelRefProcEnabled -XX:NewRatio=3"
