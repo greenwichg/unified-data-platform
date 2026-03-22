@@ -197,6 +197,46 @@ module "airflow" {
   tags           = local.tags
 }
 
+# ===================== Superset (BI Dashboards) =====================
+module "superset" {
+  source              = "../../modules/superset"
+  environment         = var.environment
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.vpc.private_subnet_ids
+  ecs_cluster_id      = module.ecs.cluster_id
+  ecs_cluster_name    = module.ecs.cluster_name
+  superset_database_url = var.superset_database_url
+  secret_key_arn      = var.superset_secret_key_arn
+  certificate_arn     = var.certificate_arn
+  tags                = local.tags
+}
+
+# ===================== Redash (Ad-hoc Analytics) =====================
+module "redash" {
+  source              = "../../modules/redash"
+  environment         = var.environment
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.vpc.private_subnet_ids
+  ecs_cluster_id      = module.ecs.cluster_id
+  ecs_cluster_name    = module.ecs.cluster_name
+  redash_database_url = var.redash_database_url
+  cookie_secret_arn   = var.redash_cookie_secret_arn
+  certificate_arn     = var.certificate_arn
+  tags                = local.tags
+}
+
+# ===================== JupyterHub (Data Science Notebooks) =====================
+module "jupyter" {
+  source             = "../../modules/jupyter"
+  environment        = var.environment
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+  ecs_cluster_id     = module.ecs.cluster_id
+  s3_data_bucket     = module.s3.raw_bucket_name
+  certificate_arn    = var.certificate_arn
+  tags               = local.tags
+}
+
 # ===================== Monitoring =====================
 module "monitoring" {
   source      = "../../modules/monitoring"
