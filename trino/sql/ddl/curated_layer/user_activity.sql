@@ -1,49 +1,50 @@
 -- ============================================================================
--- Zomato Data Platform - Curated Layer: User Activity Aggregations
+-- Zomato Data Platform - Curated Layer: User Activity (Athena / Glue Data Catalog)
 -- Format: Iceberg (Apache Iceberg v2) | Partitioned by: activity_date, city_id
 -- Daily pre-aggregated user activity metrics for downstream analytics
+-- NOTE: Schema references use Glue Data Catalog (no catalog prefix needed).
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS curated.user_activity (
-    user_id                     VARCHAR         NOT NULL,
-    city_id                     INTEGER         NOT NULL,
-    city_name                   VARCHAR,
-    activity_date               DATE            NOT NULL,
+CREATE TABLE IF NOT EXISTS zomato_curated.user_activity (
+    user_id                     STRING,
+    city_id                     INT,
+    city_name                   STRING,
+    activity_date               DATE,
 
     -- Order metrics
-    order_count                 INTEGER         DEFAULT 0,
-    completed_order_count       INTEGER         DEFAULT 0,
-    cancelled_order_count       INTEGER         DEFAULT 0,
-    total_gmv                   DECIMAL(14,2)   DEFAULT 0,
-    total_discount              DECIMAL(14,2)   DEFAULT 0,
-    net_spend                   DECIMAL(14,2)   DEFAULT 0,
+    order_count                 INT,
+    completed_order_count       INT,
+    cancelled_order_count       INT,
+    total_gmv                   DECIMAL(14,2),
+    total_discount              DECIMAL(14,2),
+    net_spend                   DECIMAL(14,2),
     avg_order_value             DECIMAL(10,2),
     max_order_value             DECIMAL(10,2),
     min_order_value             DECIMAL(10,2),
-    distinct_restaurants        INTEGER         DEFAULT 0,
-    distinct_cuisines           INTEGER         DEFAULT 0,
-    items_ordered               INTEGER         DEFAULT 0,
+    distinct_restaurants        INT,
+    distinct_cuisines           INT,
+    items_ordered               INT,
 
     -- Delivery experience
     avg_delivery_time_min       DOUBLE,
     max_delivery_time_min       DOUBLE,
-    late_delivery_count         INTEGER         DEFAULT 0,
+    late_delivery_count         INT,
     avg_delivery_rating         DOUBLE,
 
     -- App engagement
-    app_open_count              INTEGER         DEFAULT 0,
-    search_count                INTEGER         DEFAULT 0,
-    restaurant_view_count       INTEGER         DEFAULT 0,
-    menu_view_count             INTEGER         DEFAULT 0,
-    cart_add_count              INTEGER         DEFAULT 0,
-    cart_abandon_count          INTEGER         DEFAULT 0,
-    session_count               INTEGER         DEFAULT 0,
-    total_session_duration_sec  BIGINT          DEFAULT 0,
+    app_open_count              INT,
+    search_count                INT,
+    restaurant_view_count       INT,
+    menu_view_count             INT,
+    cart_add_count              INT,
+    cart_abandon_count          INT,
+    session_count               INT,
+    total_session_duration_sec  BIGINT,
     avg_session_duration_sec    DOUBLE,
 
     -- Platform
-    primary_platform            VARCHAR,        -- most used platform that day
-    primary_payment_method      VARCHAR,
+    primary_platform            STRING,        -- most used platform that day
+    primary_payment_method      STRING,
 
     -- Engagement scoring
     engagement_score            DOUBLE,         -- composite score 0-100
@@ -52,25 +53,26 @@ CREATE TABLE IF NOT EXISTS curated.user_activity (
 
     -- User attributes (snapshotted)
     is_pro_member               BOOLEAN,
-    pro_tier                    VARCHAR,
-    lifetime_order_count        INTEGER,
-    days_since_registration     INTEGER,
-    days_since_last_order       INTEGER,
+    pro_tier                    STRING,
+    lifetime_order_count        INT,
+    days_since_registration     INT,
+    days_since_last_order       INT,
 
     -- Metadata
-    processed_at                TIMESTAMP(6),
-    pipeline_version            VARCHAR
+    processed_at                TIMESTAMP,
+    pipeline_version            STRING
 )
+PARTITIONED BY (activity_date, city_id)
 WITH (
-    format           = 'PARQUET',
-    location         = 's3a://zomato-data-lake-prod/curated/user_activity/',
-    partitioning     = ARRAY['activity_date', 'city_id'],
-    sorted_by        = ARRAY['user_id'],
-    format_version   = 2
+    table_type   = 'ICEBERG',
+    format       = 'PARQUET',
+    location     = 's3://zomato-data-lake-prod/curated/user_activity/',
+    is_external  = false,
+    write_compression = 'ZSTD'
 );
 
 -- Incremental merge pattern for late-arriving data:
--- MERGE INTO curated.user_activity AS target
+-- MERGE INTO zomato_curated.user_activity AS target
 -- USING staging.user_activity_daily AS source
 -- ON target.user_id = source.user_id
 --    AND target.activity_date = source.activity_date

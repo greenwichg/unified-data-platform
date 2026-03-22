@@ -1,29 +1,30 @@
 -- ============================================================================
--- Zomato Data Platform - Curated Layer: Orders
+-- Zomato Data Platform - Curated Layer: Orders (Athena / Glue Data Catalog)
 -- Format: Iceberg (Apache Iceberg v2) | Partitioned by: order_date, city_id
 -- Deduped, cleaned, enriched orders from raw layer
+-- NOTE: Schema references use Glue Data Catalog (no catalog prefix needed).
 -- ============================================================================
 
 
 -- ============================================================================
 -- Table Definition
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS curated.orders_curated (
-    order_id                VARCHAR         NOT NULL,
-    customer_id             VARCHAR         NOT NULL,
-    restaurant_id           VARCHAR         NOT NULL,
-    city_id                 INTEGER         NOT NULL,
-    city_name               VARCHAR,
-    zone_id                 INTEGER,
-    zone_name               VARCHAR,
-    order_status            VARCHAR,
+CREATE TABLE IF NOT EXISTS zomato_curated.orders_curated (
+    order_id                STRING,
+    customer_id             STRING,
+    restaurant_id           STRING,
+    city_id                 INT,
+    city_name               STRING,
+    zone_id                 INT,
+    zone_name               STRING,
+    order_status            STRING,
     is_completed            BOOLEAN,
     is_cancelled            BOOLEAN,
-    order_type              VARCHAR,
-    payment_method          VARCHAR,
-    payment_status          VARCHAR,
-    coupon_code             VARCHAR,
-    coupon_type             VARCHAR,        -- 'flat', 'percentage', 'freebie', 'bogo'
+    order_type              STRING,
+    payment_method          STRING,
+    payment_status          STRING,
+    coupon_code             STRING,
+    coupon_type             STRING,        -- 'flat', 'percentage', 'freebie', 'bogo'
     subtotal_amount         DECIMAL(12,2),
     tax_amount              DECIMAL(12,2),
     delivery_fee            DECIMAL(12,2),
@@ -32,60 +33,62 @@ CREATE TABLE IF NOT EXISTS curated.orders_curated (
     restaurant_payout       DECIMAL(12,2),
     total_amount            DECIMAL(12,2),
     net_revenue             DECIMAL(12,2),  -- total - discount - restaurant_payout
-    currency                VARCHAR,
-    item_count              INTEGER,
-    unique_item_count       INTEGER,
+    currency                STRING,
+    item_count              INT,
+    unique_item_count       INT,
     has_veg_items           BOOLEAN,
     has_non_veg_items       BOOLEAN,
-    cuisine_primary         VARCHAR,
-    rider_id                VARCHAR,
+    cuisine_primary         STRING,
+    rider_id                STRING,
     delivery_distance_km    DOUBLE,
-    estimated_delivery_min  INTEGER,
-    actual_delivery_min     INTEGER,
-    delivery_delay_min      INTEGER,        -- actual - estimated
+    estimated_delivery_min  INT,
+    actual_delivery_min     INT,
+    delivery_delay_min      INT,        -- actual - estimated
     is_late_delivery        BOOLEAN,
     sla_breach              BOOLEAN,
-    order_placed_at         TIMESTAMP(6),
-    order_accepted_at       TIMESTAMP(6),
-    food_ready_at           TIMESTAMP(6),
-    order_picked_up_at      TIMESTAMP(6),
-    order_delivered_at       TIMESTAMP(6),
-    order_cancelled_at      TIMESTAMP(6),
-    cancellation_reason     VARCHAR,
-    cancellation_source     VARCHAR,        -- 'customer', 'restaurant', 'system', 'rider'
+    order_placed_at         TIMESTAMP,
+    order_accepted_at       TIMESTAMP,
+    food_ready_at           TIMESTAMP,
+    order_picked_up_at      TIMESTAMP,
+    order_delivered_at      TIMESTAMP,
+    order_cancelled_at      TIMESTAMP,
+    cancellation_reason     STRING,
+    cancellation_source     STRING,        -- 'customer', 'restaurant', 'system', 'rider'
     accept_to_deliver_min   DOUBLE,         -- end-to-end fulfillment time
-    platform                VARCHAR,
-    app_version             VARCHAR,
+    platform                STRING,
+    app_version             STRING,
     customer_lat            DOUBLE,
     customer_lng            DOUBLE,
     restaurant_lat          DOUBLE,
     restaurant_lng          DOUBLE,
     is_first_order          BOOLEAN,
     is_pro_member           BOOLEAN,
-    customer_lifetime_orders INTEGER,
+    customer_lifetime_orders INT,
     restaurant_rating       DOUBLE,
-    order_rating            INTEGER,
-    order_feedback          VARCHAR,
-    order_date              DATE            NOT NULL,
-    order_hour              INTEGER,
+    order_rating            INT,
+    order_feedback          STRING,
+    order_date              DATE,
+    order_hour              INT,
     is_weekend              BOOLEAN,
     is_peak_hour            BOOLEAN,        -- 12-14, 19-22
-    processed_at            TIMESTAMP(6)
+    processed_at            TIMESTAMP
 )
+PARTITIONED BY (order_date, city_id)
 WITH (
-    format           = 'PARQUET',
-    location         = 's3a://zomato-data-lake-prod/curated/orders/',
-    partitioning     = ARRAY['order_date', 'city_id'],
-    sorted_by        = ARRAY['order_placed_at'],
-    format_version   = 2
+    table_type   = 'ICEBERG',
+    format       = 'PARQUET',
+    location     = 's3://zomato-data-lake-prod/curated/orders/',
+    is_external  = false,
+    write_compression = 'ZSTD'
 );
 
 
 -- ============================================================================
 -- CTAS / INSERT: Build curated orders with joins, dedup, and quality filters
 -- Run incrementally for each day's data
+-- NOTE: Athena uses Glue Data Catalog; schema references are database.table.
 -- ============================================================================
-INSERT INTO curated.orders_curated
+INSERT INTO zomato_curated.orders_curated
 WITH deduplicated_orders AS (
     -- Deduplicate raw orders: keep the latest record per order_id
     SELECT
@@ -94,7 +97,7 @@ WITH deduplicated_orders AS (
             PARTITION BY order_id
             ORDER BY kafka_timestamp DESC, kafka_offset DESC
         ) AS row_num
-    FROM raw.orders_raw
+    FROM zomato_raw.orders_raw
     WHERE dt = CAST(CURRENT_DATE - INTERVAL '1' DAY AS VARCHAR)
       -- Data quality gate: reject records missing critical fields
       AND order_id IS NOT NULL
@@ -121,7 +124,7 @@ restaurant_info AS (
                 PARTITION BY restaurant_id
                 ORDER BY cdc_timestamp DESC
             ) AS rn
-        FROM raw.restaurants_raw
+        FROM zomato_raw.restaurants_raw
         WHERE dt >= CAST(CURRENT_DATE - INTERVAL '7' DAY AS VARCHAR)
     )
     WHERE rn = 1
@@ -139,7 +142,7 @@ user_info AS (
                 PARTITION BY user_id
                 ORDER BY cdc_timestamp DESC
             ) AS rn
-        FROM raw.users_raw
+        FROM zomato_raw.users_raw
         WHERE dt >= CAST(CURRENT_DATE - INTERVAL '7' DAY AS VARCHAR)
     )
     WHERE rn = 1
@@ -156,7 +159,7 @@ delivery_info AS (
                 PARTITION BY order_id
                 ORDER BY kafka_timestamp DESC
             ) AS rn
-        FROM raw.deliveries_raw
+        FROM zomato_raw.deliveries_raw
         WHERE dt = CAST(CURRENT_DATE - INTERVAL '1' DAY AS VARCHAR)
     )
     WHERE rn = 1
@@ -173,7 +176,7 @@ payment_info AS (
                 PARTITION BY order_id
                 ORDER BY kafka_timestamp DESC
             ) AS rn
-        FROM raw.payments_raw
+        FROM zomato_raw.payments_raw
         WHERE dt = CAST(CURRENT_DATE - INTERVAL '1' DAY AS VARCHAR)
     )
     WHERE rn = 1
@@ -183,7 +186,7 @@ first_order_check AS (
     SELECT
         customer_id,
         MIN(order_placed_at) AS first_order_time
-    FROM raw.orders_raw
+    FROM zomato_raw.orders_raw
     WHERE dt <= CAST(CURRENT_DATE - INTERVAL '1' DAY AS VARCHAR)
     GROUP BY customer_id
 )
@@ -326,19 +329,12 @@ WHERE o.total_amount > 0
 
 
 -- ============================================================================
--- Iceberg Table Maintenance Procedures
+-- Iceberg Table Maintenance Procedures (Athena-compatible)
 -- ============================================================================
 
 -- OPTIMIZE: compact small files produced by streaming ingestion
--- ALTER TABLE curated.orders_curated EXECUTE optimize
+-- OPTIMIZE zomato_curated.orders_curated REWRITE DATA USING BIN_PACK
 --     WHERE order_date >= CURRENT_DATE - INTERVAL '3' DAY;
 
--- EXPIRE SNAPSHOTS: clean up old metadata (retain 7 days)
--- ALTER TABLE curated.orders_curated EXECUTE expire_snapshots(retention_threshold => '7d');
-
--- REMOVE ORPHAN FILES
--- ALTER TABLE curated.orders_curated EXECUTE remove_orphan_files(retention_threshold => '7d');
-
--- ANALYZE for query optimizer statistics
--- ANALYZE curated.orders_curated
---     WHERE order_date >= CURRENT_DATE - INTERVAL '7' DAY;
+-- VACUUM: remove old snapshots and orphan files (retain 7 days)
+-- VACUUM zomato_curated.orders_curated;

@@ -87,7 +87,7 @@ scrape_configs:
       - targets:
           - kafka-exporter:9308
         labels:
-          cluster: zomato-kafka-prod
+          cluster: zomato-msk-prod
 
   # ---------------------------------------------------------------------------
   # Apache Flink (JobManager only — TaskManagers managed by AWS Managed Flink)

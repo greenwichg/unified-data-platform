@@ -1,41 +1,42 @@
 -- ============================================================================
--- Zomato Data Platform - Curated Layer: Restaurants
+-- Zomato Data Platform - Curated Layer: Restaurants (Athena / Glue Data Catalog)
 -- Format: Iceberg (Apache Iceberg v2) | Partitioned by: snapshot_date, city_id
 -- Master restaurant dimension with daily-refreshed operational and quality metrics
+-- NOTE: Schema references use Glue Data Catalog (no catalog prefix needed).
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS curated.restaurant_curated (
-    restaurant_id               VARCHAR         NOT NULL,
-    restaurant_name             VARCHAR         NOT NULL,
-    city_id                     INTEGER         NOT NULL,
-    city_name                   VARCHAR,
-    zone_id                     INTEGER,
-    zone_name                   VARCHAR,
-    locality                    VARCHAR,
-    address                     VARCHAR,
+CREATE TABLE IF NOT EXISTS zomato_curated.restaurant_curated (
+    restaurant_id               STRING,
+    restaurant_name             STRING,
+    city_id                     INT,
+    city_name                   STRING,
+    zone_id                     INT,
+    zone_name                   STRING,
+    locality                    STRING,
+    address                     STRING,
     latitude                    DOUBLE,
     longitude                   DOUBLE,
-    pincode                     VARCHAR,
+    pincode                     STRING,
 
     -- Restaurant classification
-    restaurant_type             VARCHAR,        -- 'cloud_kitchen', 'dine_in', 'qsr', 'fine_dining', 'cafe'
-    chain_id                    VARCHAR,        -- null for independents
-    chain_name                  VARCHAR,
+    restaurant_type             STRING,        -- 'cloud_kitchen', 'dine_in', 'qsr', 'fine_dining', 'cafe'
+    chain_id                    STRING,        -- null for independents
+    chain_name                  STRING,
     is_chain                    BOOLEAN,
-    cuisine_primary             VARCHAR,
-    cuisine_secondary           VARCHAR,
-    cuisine_tags                VARCHAR,        -- comma-separated: 'north_indian,mughlai,biryani'
+    cuisine_primary             STRING,
+    cuisine_secondary           STRING,
+    cuisine_tags                STRING,        -- comma-separated: 'north_indian,mughlai,biryani'
     cost_for_two                DECIMAL(10,2),
-    price_segment               VARCHAR,        -- 'budget', 'mid_range', 'premium', 'fine_dining'
-    dietary_options             VARCHAR,        -- 'veg_only', 'veg_nonveg', 'nonveg_only'
+    price_segment               STRING,        -- 'budget', 'mid_range', 'premium', 'fine_dining'
+    dietary_options             STRING,        -- 'veg_only', 'veg_nonveg', 'nonveg_only'
 
     -- Partnership
     onboarding_date             DATE,
     is_active                   BOOLEAN,
     is_pro_partner              BOOLEAN,
     commission_rate             DOUBLE,
-    contract_type               VARCHAR,        -- 'standard', 'exclusive', 'premium'
-    account_manager_id          VARCHAR,
+    contract_type               STRING,        -- 'standard', 'exclusive', 'premium'
+    account_manager_id          STRING,
 
     -- Ratings
     overall_rating              DOUBLE,
@@ -67,39 +68,40 @@ CREATE TABLE IF NOT EXISTS curated.restaurant_curated (
     avg_delivery_time_30d       DOUBLE,
 
     -- Menu
-    total_menu_items            INTEGER,
-    available_menu_items        INTEGER,
+    total_menu_items            INT,
+    available_menu_items        INT,
     menu_availability_rate      DOUBLE,
-    bestseller_count            INTEGER,
+    bestseller_count            INT,
     avg_item_price              DECIMAL(10,2),
 
     -- Availability
     avg_online_hours_30d        DOUBLE,
     availability_rate_30d       DOUBLE,
-    unplanned_offline_count_30d INTEGER,
+    unplanned_offline_count_30d INT,
 
     -- Quality flags
     is_hygiene_certified        BOOLEAN,
     food_safety_score           DOUBLE,
     has_active_complaints       BOOLEAN,
-    complaint_count_30d         INTEGER,
+    complaint_count_30d         INT,
 
     -- Rankings
-    city_rank_by_orders         INTEGER,
-    city_rank_by_rating         INTEGER,
-    city_rank_by_gmv            INTEGER,
-    zone_rank_by_orders         INTEGER,
-    cuisine_rank_in_city        INTEGER,
+    city_rank_by_orders         INT,
+    city_rank_by_rating         INT,
+    city_rank_by_gmv            INT,
+    zone_rank_by_orders         INT,
+    cuisine_rank_in_city        INT,
 
     -- Metadata
-    snapshot_date               DATE            NOT NULL,
-    last_updated_at             TIMESTAMP(6),
-    processed_at                TIMESTAMP(6)
+    snapshot_date               DATE,
+    last_updated_at             TIMESTAMP,
+    processed_at                TIMESTAMP
 )
+PARTITIONED BY (snapshot_date, city_id)
 WITH (
-    format           = 'PARQUET',
-    location         = 's3a://zomato-data-lake-prod/curated/restaurant/',
-    partitioning     = ARRAY['snapshot_date', 'city_id'],
-    sorted_by        = ARRAY['restaurant_id'],
-    format_version   = 2
+    table_type   = 'ICEBERG',
+    format       = 'PARQUET',
+    location     = 's3://zomato-data-lake-prod/curated/restaurant/',
+    is_external  = false,
+    write_compression = 'ZSTD'
 );
