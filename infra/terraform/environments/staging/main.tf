@@ -75,7 +75,7 @@ module "kafka" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnet_ids
   instance_type   = var.kafka_instance_type
-  broker_count    = var.kafka_broker_count
+  number_of_brokers = var.kafka_broker_count
   ebs_volume_size = var.kafka_ebs_volume_size
   tags            = local.tags
 }
@@ -123,6 +123,8 @@ module "flink" {
   vpc_id                  = module.vpc.vpc_id
   subnet_ids              = module.vpc.private_subnet_ids
   kafka_security_group_id = module.kafka.security_group_id
+  kafka_bootstrap_servers = module.kafka.bootstrap_brokers_iam
+  code_s3_bucket          = module.s3.raw_bucket_name
   s3_checkpoints_bucket   = module.s3.checkpoints_bucket_name
   s3_output_bucket        = module.s3.raw_bucket_name
   tags                    = local.tags

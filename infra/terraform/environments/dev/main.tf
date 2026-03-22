@@ -11,14 +11,6 @@ terraform {
       version = "~> 5.30"
     }
   }
-
-  backend "s3" {
-    bucket         = "zomato-terraform-state"
-    key            = "dev/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
-  }
 }
 
 provider "aws" {
@@ -31,16 +23,6 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
-}
-
-variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-}
-
-variable "environment" {
-  type    = string
-  default = "dev"
 }
 
 locals {
@@ -91,7 +73,7 @@ module "kafka" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnet_ids
   instance_type   = "kafka.r8g.2xlarge"
-  broker_count    = 3
+  number_of_brokers = 3
   ebs_volume_size = 500
   tags            = local.tags
 }
@@ -139,6 +121,8 @@ module "flink" {
   vpc_id                  = module.vpc.vpc_id
   subnet_ids              = module.vpc.private_subnet_ids
   kafka_security_group_id = module.kafka.security_group_id
+  kafka_bootstrap_servers = module.kafka.bootstrap_brokers_iam
+  code_s3_bucket          = module.s3.raw_bucket_name
   s3_checkpoints_bucket   = module.s3.checkpoints_bucket_name
   s3_output_bucket        = module.s3.raw_bucket_name
   tags                    = local.tags
@@ -242,29 +226,4 @@ module "monitoring" {
   source      = "../../modules/monitoring"
   environment = var.environment
   tags        = local.tags
-}
-
-# ===================== Outputs =====================
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
-
-output "aurora_endpoint" {
-  value = module.aurora.cluster_endpoint
-}
-
-output "s3_raw_bucket" {
-  value = module.s3.raw_bucket_name
-}
-
-output "s3_processed_bucket" {
-  value = module.s3.processed_bucket_name
-}
-
-output "airflow_url" {
-  value = module.airflow.webserver_url
-}
-
-output "emr_cluster_id" {
-  value = module.emr.cluster_id
 }
