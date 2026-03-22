@@ -125,10 +125,10 @@ spec:
                         container('terraform') {
                             sh '''
                                 echo "=== Terraform fmt ==="
-                                terraform fmt -check -recursive terraform/
+                                terraform fmt -check -recursive infra/terraform/
 
                                 echo "=== Terraform validate (modules) ==="
-                                for module_dir in terraform/modules/*/; do
+                                for module_dir in infra/terraform/modules/*/; do
                                     module=$(basename "$module_dir")
                                     echo "Validating module: $module"
                                     terraform -chdir="$module_dir" init -backend=false -input=false > /dev/null 2>&1 || true
@@ -309,7 +309,7 @@ print('  OK')
                         container('terraform') {
                             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-dev-credentials']]) {
                                 sh '''
-                                    cd terraform/environments/dev
+                                    cd infra/terraform/environments/dev
                                     terraform init -input=false
                                     terraform plan -input=false -out=tfplan
                                     terraform apply -input=false -auto-approve tfplan
@@ -324,7 +324,7 @@ print('  OK')
                         container('terraform') {
                             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-staging-credentials']]) {
                                 sh '''
-                                    cd terraform/environments/staging
+                                    cd infra/terraform/environments/staging
                                     terraform init -input=false
                                     terraform plan -input=false -out=tfplan
                                     terraform apply -input=false -auto-approve tfplan
@@ -344,7 +344,7 @@ print('  OK')
                         container('terraform') {
                             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-prod-credentials']]) {
                                 sh '''
-                                    cd terraform/environments/prod
+                                    cd infra/terraform/environments/prod
                                     terraform init -input=false
                                     terraform plan -input=false -out=tfplan
                                     terraform apply -input=false -auto-approve tfplan
