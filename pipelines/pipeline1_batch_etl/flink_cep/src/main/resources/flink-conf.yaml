@@ -11,14 +11,16 @@
 job.name: zomato-pipeline1-batch-cep
 job.parallelism: 32
 
-# -- Kafka source --
-kafka.bootstrap.servers: kafka-1:9092,kafka-2:9092,kafka-3:9092
+# -- MSK (Amazon Managed Streaming for Kafka) source --
+kafka.bootstrap.servers: b-1.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098
+kafka.security.protocol: SASL_SSL
+kafka.sasl.mechanism: AWS_MSK_IAM
 kafka.topic: orders
 kafka.consumer.group: pipeline1-batch-cep
 
 # -- S3 / Iceberg --
 s3.bucket: zomato-data-platform-prod-raw-data-lake
-iceberg.catalog.type: hive
+iceberg.catalog.type: glue
 iceberg.warehouse: s3://zomato-data-platform-prod-raw-data-lake/pipeline1-batch-etl/iceberg
 
 # ============================================================================

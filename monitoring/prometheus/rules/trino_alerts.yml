@@ -1,188 +1,85 @@
+# =============================================================================
+# DEPRECATED: Trino has been replaced by Amazon Athena (serverless).
+#
+# Athena monitoring is now handled via:
+#   - AWS CloudWatch metrics (AWS/Athena namespace)
+#   - CloudWatch Alarms configured in Terraform (terraform/modules/athena/)
+#   - Custom CloudWatch metrics published by scripts/ops/trino_cluster_health.sh
+#     (now renamed to Athena workgroup health check)
+#
+# The CloudWatch-based alerts cover:
+#   - AthenaQueryFailureRateHigh: >10% query failures over 15 min
+#   - AthenaQueryFailureRateCritical: >30% query failures over 5 min
+#   - AthenaDataScannedHigh: Excessive data scanned (cost alert)
+#   - AthenaQueryLatencyHigh: p99 execution time > 5 minutes
+#
+# These Prometheus rules are kept as reference only. They will not fire
+# since Trino exporters are no longer deployed in production.
+# =============================================================================
 groups:
-  - name: trino_cluster_health
-    interval: 30s
+  - name: athena_health
+    interval: 60s
     rules:
       # -----------------------------------------------------------------------
-      # Worker availability
+      # Athena health check (from custom metrics published to Prometheus
+      # via CloudWatch exporter or pushgateway)
       # -----------------------------------------------------------------------
-      - alert: TrinoWorkerDown
-        expr: up{job="trino-workers"} == 0
-        for: 2m
-        labels:
-          severity: warning
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino worker {{ $labels.instance }} is down"
-          description: >-
-            Trino worker {{ $labels.worker_id }} in cluster
-            {{ $labels.trino_cluster }} is unreachable. Query capacity is
-            reduced.
-          runbook_url: https://runbooks.zomato.internal/trino/worker-down
-
-      - alert: TrinoInsufficientWorkers
-        expr: >
-          count(up{job="trino-workers"} == 1) by (trino_cluster)
-          < 0.5 * count(up{job="trino-workers"}) by (trino_cluster)
+      - alert: AthenaWorkgroupUnhealthy
+        expr: athena_workgroup_healthy == 0
         for: 5m
         labels:
           severity: critical
           team: data-platform
-          service: trino
+          service: athena
         annotations:
-          summary: "Trino cluster {{ $labels.trino_cluster }} has lost >50% of workers"
+          summary: "Athena workgroup {{ $labels.workgroup }} is unhealthy"
           description: >-
-            Only {{ $value }} workers are alive in {{ $labels.trino_cluster }}.
-            More than half the cluster is unreachable. Queries will be slow or
-            fail.
-          runbook_url: https://runbooks.zomato.internal/trino/insufficient-workers
+            Athena workgroup {{ $labels.workgroup }} health check is failing.
+            Check AWS Console for workgroup status and CloudWatch for errors.
+          runbook_url: https://runbooks.zomato.internal/athena/workgroup-unhealthy
 
-      - alert: TrinoCoordinatorDown
-        expr: up{job="trino-coordinator"} == 0
-        for: 1m
-        labels:
-          severity: critical
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino coordinator is down"
-          description: >-
-            The Trino coordinator for cluster {{ $labels.trino_cluster }} is
-            unreachable. No new queries can be accepted.
-          runbook_url: https://runbooks.zomato.internal/trino/coordinator-down
-
-      # -----------------------------------------------------------------------
-      # Query failures
-      # -----------------------------------------------------------------------
-      - alert: TrinoQueryFailureRateHigh
+      - alert: AthenaQueryFailureRateHigh
         expr: >
-          rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m])
-          / (rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m]) + 0.001) > 0.10
-        for: 10m
-        labels:
-          severity: warning
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino query failure rate above 10%"
-          description: >-
-            {{ $value | printf "%.1f" | humanizePercentage }} of queries are
-            failing in cluster {{ $labels.trino_cluster }} over the last 5 minutes.
-          runbook_url: https://runbooks.zomato.internal/trino/query-failures
-
-      - alert: TrinoQueryFailureRateCritical
-        expr: >
-          rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m])
-          / (rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m]) + 0.001) > 0.30
-        for: 5m
-        labels:
-          severity: critical
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino query failure rate above 30%"
-          description: >-
-            {{ $value | printf "%.1f" | humanizePercentage }} of queries are
-            failing. Analytical workloads are severely impacted.
-          runbook_url: https://runbooks.zomato.internal/trino/query-failures-critical
-
-      - alert: TrinoQueuedQueriesHigh
-        expr: trino_execution_QueryManager_QueuedQueries > 50
-        for: 10m
-        labels:
-          severity: warning
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino has {{ $value }} queued queries"
-          description: >-
-            {{ $value }} queries are queued in {{ $labels.trino_cluster }}.
-            The cluster may be undersized for current workload.
-          runbook_url: https://runbooks.zomato.internal/trino/queued-queries
-
-      # -----------------------------------------------------------------------
-      # Memory pressure
-      # -----------------------------------------------------------------------
-      - alert: TrinoClusterMemoryHigh
-        expr: >
-          trino_memory_ClusterMemoryPool_FreeBytes
-          / trino_memory_ClusterMemoryPool_MaxBytes < 0.15
-        for: 10m
-        labels:
-          severity: warning
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino cluster memory usage above 85%"
-          description: >-
-            Only {{ $value | printf "%.1f" | humanizePercentage }} of cluster
-            memory pool is free in {{ $labels.trino_cluster }}. Large queries
-            may start being killed.
-          runbook_url: https://runbooks.zomato.internal/trino/memory-pressure
-
-      - alert: TrinoClusterMemoryCritical
-        expr: >
-          trino_memory_ClusterMemoryPool_FreeBytes
-          / trino_memory_ClusterMemoryPool_MaxBytes < 0.05
-        for: 5m
-        labels:
-          severity: critical
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino cluster memory usage above 95%"
-          description: >-
-            Cluster memory pool is nearly exhausted in {{ $labels.trino_cluster }}.
-            Queries will be killed to free resources.
-          runbook_url: https://runbooks.zomato.internal/trino/memory-critical
-
-      - alert: TrinoWorkerMemoryHigh
-        expr: >
-          trino_memory_MemoryPool_FreeBytes
-          / trino_memory_MemoryPool_MaxBytes < 0.10
-        for: 10m
-        labels:
-          severity: warning
-          team: data-platform
-          service: trino
-        annotations:
-          summary: "Trino worker {{ $labels.instance }} memory above 90%"
-          description: >-
-            Worker {{ $labels.worker_id }} memory pool utilization is very high.
-            Splits assigned to this worker may fail.
-          runbook_url: https://runbooks.zomato.internal/trino/worker-memory
-
-      # -----------------------------------------------------------------------
-      # Query latency
-      # -----------------------------------------------------------------------
-      - alert: TrinoQueryLatencyP99High
-        expr: >
-          histogram_quantile(0.99,
-            rate(trino_execution_QueryManager_ExecutionTime_bucket[10m])
-          ) > 300
+          athena_failed_queries / (athena_total_queries + 0.001) > 0.10
         for: 15m
         labels:
           severity: warning
           team: data-platform
-          service: trino
+          service: athena
         annotations:
-          summary: "Trino p99 query latency exceeds 5 minutes"
+          summary: "Athena query failure rate above 10% in workgroup {{ $labels.workgroup }}"
           description: >-
-            p99 query execution time in {{ $labels.trino_cluster }} is
-            {{ $value | printf "%.0f" }}s. Dashboard and reporting queries
-            may be timing out.
-          runbook_url: https://runbooks.zomato.internal/trino/query-latency
+            {{ $value | printf "%.1f" | humanizePercentage }} of Athena queries are
+            failing in workgroup {{ $labels.workgroup }} over the last 15 minutes.
+          runbook_url: https://runbooks.zomato.internal/athena/query-failures
 
-      - alert: TrinoAbandonedQueries
-        expr: rate(trino_execution_QueryManager_AbandonedQueries_TotalCount[10m]) > 0.05
-        for: 10m
+      - alert: AthenaQueryFailureRateCritical
+        expr: >
+          athena_failed_queries / (athena_total_queries + 0.001) > 0.30
+        for: 5m
+        labels:
+          severity: critical
+          team: data-platform
+          service: athena
+        annotations:
+          summary: "Athena query failure rate above 30% in workgroup {{ $labels.workgroup }}"
+          description: >-
+            {{ $value | printf "%.1f" | humanizePercentage }} of Athena queries are
+            failing. Analytical workloads are severely impacted.
+          runbook_url: https://runbooks.zomato.internal/athena/query-failures-critical
+
+      - alert: AthenaDataScannedExcessive
+        expr: >
+          athena_data_scanned_gb > 500
+        for: 30m
         labels:
           severity: warning
           team: data-platform
-          service: trino
+          service: athena
         annotations:
-          summary: "Trino abandoned queries rate elevated"
+          summary: "Athena workgroup {{ $labels.workgroup }} scanned >500 GB in 30 min"
           description: >-
-            Abandoned query rate is {{ $value | printf "%.3f" }}/sec. Clients
-            may be timing out waiting for results.
-          runbook_url: https://runbooks.zomato.internal/trino/abandoned-queries
+            Excessive data scanned ({{ $value | printf "%.0f" }} GB) in
+            workgroup {{ $labels.workgroup }}. Review queries for missing
+            partition pruning or full table scans.
+          runbook_url: https://runbooks.zomato.internal/athena/excessive-scan

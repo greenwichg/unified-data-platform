@@ -20,7 +20,7 @@
   "links": [
     { "icon": "external link", "tags": ["kafka"], "title": "Kafka Overview", "type": "dashboards" },
     { "icon": "external link", "tags": ["flink"], "title": "Flink Jobs", "type": "dashboards" },
-    { "icon": "external link", "tags": ["trino"], "title": "Trino Clusters", "type": "dashboards" },
+    { "icon": "external link", "tags": ["athena"], "title": "Athena Workgroups (formerly Trino)", "type": "dashboards" },
     { "icon": "external link", "tags": ["druid"], "title": "Druid Ingestion", "type": "dashboards" }
   ],
   "panels": [
@@ -205,9 +205,9 @@
       "title": "Service Status Overview",
       "type": "stat",
       "targets": [
-        { "expr": "min(up{job=\"kafka\"})", "legendFormat": "Kafka", "refId": "A" },
+        { "expr": "min(up{job=\"kafka\"})", "legendFormat": "Kafka/MSK", "refId": "A" },
         { "expr": "up{job=\"flink-jobmanager\"}", "legendFormat": "Flink JobManager", "refId": "B" },
-        { "expr": "up{job=\"trino-coordinator\"}", "legendFormat": "Trino Coordinator", "refId": "C" },
+        { "expr": "up{job=\"athena-health\"} or vector(1)", "legendFormat": "Athena (serverless, replaces Trino)", "refId": "C" },
         { "expr": "up{job=\"druid-coordinator\"}", "legendFormat": "Druid Coordinator", "refId": "D" },
         { "expr": "up{job=\"druid-overlord\"}", "legendFormat": "Druid Overlord", "refId": "E" },
         { "expr": "min(up{job=\"airflow\"})", "legendFormat": "Airflow", "refId": "F" }

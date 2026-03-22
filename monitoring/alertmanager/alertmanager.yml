@@ -26,14 +26,15 @@ inhibit_rules:
     equal:
       - job_name
 
-  # If Trino coordinator is down, suppress worker and query alerts
+  # If Athena workgroup is unhealthy, suppress query-level alerts
+  # (Replaces former Trino coordinator inhibit rule)
   - source_matchers:
-      - alertname = TrinoCoordinatorDown
+      - alertname = AthenaWorkgroupUnhealthy
     target_matchers:
-      - service = trino
-      - alertname != TrinoCoordinatorDown
+      - service = athena
+      - alertname != AthenaWorkgroupUnhealthy
     equal:
-      - trino_cluster
+      - workgroup
 
   # If Druid coordinator is down, suppress segment alerts
   - source_matchers:
@@ -105,15 +106,15 @@ route:
       repeat_interval: 2h
 
     # -------------------------------------------------------------------------
-    # Trino-specific routing
+    # Athena-specific routing (replaces former Trino routing)
     # -------------------------------------------------------------------------
     - matchers:
-        - service = trino
+        - service = athena
         - severity = warning
-      receiver: slack-trino
+      receiver: slack-athena
       group_by:
         - alertname
-        - trino_cluster
+        - workgroup
       repeat_interval: 2h
 
     # -------------------------------------------------------------------------
@@ -214,12 +215,12 @@ receivers:
           {{ .Annotations.description }}
           {{ end }}
 
-  - name: slack-trino
+  - name: slack-athena
     slack_configs:
-      - channel: "#data-platform-trino"
+      - channel: "#data-platform-athena"
         send_resolved: true
         title: >-
-          [{{ .Status | toUpper }}] Trino: {{ .CommonLabels.alertname }}
+          [{{ .Status | toUpper }}] Athena: {{ .CommonLabels.alertname }}
         text: >-
           {{ range .Alerts }}
           *{{ .Annotations.summary }}*

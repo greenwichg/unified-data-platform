@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "Trino cluster monitoring for Zomato Data Platform",
+  "description": "Amazon Athena workgroup monitoring for Zomato Data Platform (replaces former Trino cluster dashboard)",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -23,67 +23,74 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 100,
-      "title": "Cluster Health",
+      "title": "Athena Workgroup Health (replaces Trino Cluster Health)",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "mappings": [ { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" } ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0 } ] },
+          "unit": "short"
         }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 1 },
       "id": 1,
       "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "title": "Coordinator Status",
+      "title": "Athena Queries Succeeded (5m)",
       "type": "stat",
       "targets": [
-        { "expr": "up{job=\"trino-coordinator\"}", "legendFormat": "Coordinator", "refId": "A" }
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-etl"] },
+          "statistics": ["SampleCount"],
+          "period": "300",
+          "refId": "A"
+        }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }, "unit": "short" }
-      },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
-      "id": 2,
-      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "title": "Active Workers",
-      "type": "stat",
-      "targets": [
-        { "expr": "count(up{job=\"trino-workers\"} == 1)", "legendFormat": "Workers", "refId": "A" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
         "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 50 } ] }, "unit": "short" }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
-      "id": 3,
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 1 },
+      "id": 2,
       "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "title": "Running Queries",
+      "title": "Athena Running Queries",
       "type": "stat",
       "targets": [
-        { "expr": "trino_execution_QueryManager_RunningQueries", "legendFormat": "Running", "refId": "A" }
+        {
+          "namespace": "zomato-data-platform",
+          "metricName": "AthenaRecentQueries",
+          "dimensions": { "AthenaWorkgroup": ["zomato-etl"] },
+          "statistics": ["Maximum"],
+          "period": "300",
+          "refId": "A"
+        }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 } ] }, "unit": "short" }
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 } ] }, "unit": "short" }
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
-      "id": 4,
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 1 },
+      "id": 3,
       "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "title": "Queued Queries",
+      "title": "Athena Failed Queries",
       "type": "stat",
       "targets": [
-        { "expr": "trino_execution_QueryManager_QueuedQueries", "legendFormat": "Queued", "refId": "A" }
+        {
+          "namespace": "zomato-data-platform",
+          "metricName": "AthenaFailedQueries",
+          "dimensions": { "AthenaWorkgroup": ["zomato-etl"] },
+          "statistics": ["Sum"],
+          "period": "300",
+          "refId": "A"
+        }
       ]
     },
     {
@@ -94,121 +101,170 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "ms" }
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "id": 5,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "title": "Queries Per Second",
+      "title": "Athena Query Execution Time (by workgroup)",
       "type": "timeseries",
       "targets": [
-        { "expr": "rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m])", "legendFormat": "Completed", "refId": "A" },
-        { "expr": "rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m])", "legendFormat": "Failed", "refId": "B" },
-        { "expr": "rate(trino_execution_QueryManager_StartedQueries_TotalCount[5m])", "legendFormat": "Started", "refId": "C" }
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-etl"] },
+          "statistics": ["Average"],
+          "period": "300",
+          "refId": "A",
+          "label": "ETL Avg"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-adhoc"] },
+          "statistics": ["Average"],
+          "period": "300",
+          "refId": "B",
+          "label": "Adhoc Avg"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-reporting"] },
+          "statistics": ["Average"],
+          "period": "300",
+          "refId": "C",
+          "label": "Reporting Avg"
+        }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "s" }
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "ms" }
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "id": 6,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "title": "Query Execution Time Percentiles",
+      "title": "Athena Service Processing Time",
       "type": "timeseries",
       "targets": [
-        { "expr": "trino_execution_QueryManager_ExecutionTime_P50 / 1000", "legendFormat": "p50", "refId": "A" },
-        { "expr": "trino_execution_QueryManager_ExecutionTime_P90 / 1000", "legendFormat": "p90", "refId": "B" },
-        { "expr": "trino_execution_QueryManager_ExecutionTime_P99 / 1000", "legendFormat": "p99", "refId": "C" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "unit": "percentunit" }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-      "id": 7,
-      "title": "Query Failure Rate",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "rate(trino_execution_QueryManager_FailedQueries_TotalCount[5m]) / (rate(trino_execution_QueryManager_CompletedQueries_TotalCount[5m]) + 0.001)", "legendFormat": "Failure Rate", "refId": "A" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "Bps" }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "id": 8,
-      "title": "Input Data Rate",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "rate(trino_execution_QueryManager_InputDataSize_TotalCount[5m])", "legendFormat": "Input Bytes/sec", "refId": "A" },
-        { "expr": "rate(trino_execution_QueryManager_OutputDataSize_TotalCount[5m])", "legendFormat": "Output Bytes/sec", "refId": "B" }
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "ServiceProcessingTime",
+          "dimensions": { "WorkGroup": ["zomato-etl"] },
+          "statistics": ["Average"],
+          "period": "300",
+          "refId": "A",
+          "label": "ETL"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "ServiceProcessingTime",
+          "dimensions": { "WorkGroup": ["zomato-adhoc"] },
+          "statistics": ["Average"],
+          "period": "300",
+          "refId": "B",
+          "label": "Adhoc"
+        }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
       "id": 102,
-      "title": "Memory",
+      "title": "Data Scanned & Cost",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
         "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "bytes" }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
       "id": 9,
-      "title": "Cluster Memory Pool",
+      "title": "Data Scanned Per Workgroup",
       "type": "timeseries",
       "targets": [
-        { "expr": "trino_memory_ClusterMemoryPool_MaxBytes", "legendFormat": "Max", "refId": "A" },
-        { "expr": "trino_memory_ClusterMemoryPool_MaxBytes - trino_memory_ClusterMemoryPool_FreeBytes", "legendFormat": "Used", "refId": "B" },
-        { "expr": "trino_memory_ClusterMemoryPool_ReservedBytes", "legendFormat": "Reserved", "refId": "C" }
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "ProcessedBytes",
+          "dimensions": { "WorkGroup": ["zomato-etl"] },
+          "statistics": ["Sum"],
+          "period": "3600",
+          "refId": "A",
+          "label": "ETL"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "ProcessedBytes",
+          "dimensions": { "WorkGroup": ["zomato-adhoc"] },
+          "statistics": ["Sum"],
+          "period": "3600",
+          "refId": "B",
+          "label": "Adhoc"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "ProcessedBytes",
+          "dimensions": { "WorkGroup": ["zomato-reporting"] },
+          "statistics": ["Sum"],
+          "period": "3600",
+          "refId": "C",
+          "label": "Reporting"
+        }
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }, "unit": "bytes" }
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "id": 10,
-      "title": "Worker Memory Usage",
+      "title": "Query Count Per Workgroup (hourly)",
       "type": "timeseries",
       "targets": [
-        { "expr": "trino_memory_MemoryPool_MaxBytes - trino_memory_MemoryPool_FreeBytes", "legendFormat": "Used {{ instance }}", "refId": "A" }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "percentunit" }
-      },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
-      "id": 11,
-      "title": "Worker CPU Utilization",
-      "type": "timeseries",
-      "targets": [
-        { "expr": "trino_execution_TaskManager_ProcessorUtilization", "legendFormat": "{{ instance }}", "refId": "A" }
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-etl"] },
+          "statistics": ["SampleCount"],
+          "period": "3600",
+          "refId": "A",
+          "label": "ETL"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-adhoc"] },
+          "statistics": ["SampleCount"],
+          "period": "3600",
+          "refId": "B",
+          "label": "Adhoc"
+        },
+        {
+          "namespace": "AWS/Athena",
+          "metricName": "TotalExecutionTime",
+          "dimensions": { "WorkGroup": ["zomato-reporting"] },
+          "statistics": ["SampleCount"],
+          "period": "3600",
+          "refId": "C",
+          "label": "Reporting"
+        }
       ]
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["trino", "zomato", "data-platform", "sql"],
+  "tags": ["athena", "zomato", "data-platform", "sql", "aws"],
   "templating": { "list": [] },
   "time": { "from": "now-3h", "to": "now" },
   "timepicker": {},
   "timezone": "Asia/Kolkata",
-  "title": "Trino Clusters",
+  "title": "Athena Workgroups (formerly Trino Clusters)",
   "uid": "trino-clusters",
-  "version": 1
+  "version": 2
 }

@@ -48,7 +48,7 @@ public class BatchCEPJob {
     private static final Logger LOG = LoggerFactory.getLogger(BatchCEPJob.class);
 
     // Default config values; overridden by flink-conf.yaml or system properties
-    private static final String DEFAULT_KAFKA_BOOTSTRAP = "kafka-1:9092,kafka-2:9092,kafka-3:9092";
+    private static final String DEFAULT_KAFKA_BOOTSTRAP = "b-1.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-data.kafka.ap-south-1.amazonaws.com:9098";
     private static final String DEFAULT_KAFKA_TOPIC = "orders";
     private static final String DEFAULT_CONSUMER_GROUP = "pipeline1-batch-cep";
     private static final String DEFAULT_S3_BUCKET = "zomato-data-platform-prod-raw-data-lake";
@@ -96,6 +96,10 @@ public class BatchCEPJob {
         // Kafka source
         // ---------------------------------------------------------------
         Properties kafkaProps = new Properties();
+        kafkaProps.setProperty("security.protocol", "SASL_SSL");
+        kafkaProps.setProperty("sasl.mechanism", "AWS_MSK_IAM");
+        kafkaProps.setProperty("sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;");
+        kafkaProps.setProperty("sasl.client.callback.handler.class", "software.amazon.msk.auth.iam.IAMClientCallbackHandler");
         kafkaProps.setProperty("fetch.min.bytes", "1048576");
         kafkaProps.setProperty("fetch.max.wait.ms", "500");
         kafkaProps.setProperty("max.poll.records", "10000");
