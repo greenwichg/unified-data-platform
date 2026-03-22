@@ -25,6 +25,12 @@ variable "s3_deep_storage_bucket" {
   type = string
 }
 
+variable "kafka_secondary_security_group_id" {
+  description = "Security group ID of the secondary MSK cluster for Druid ingestion"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
@@ -78,6 +84,15 @@ resource "aws_security_group" "druid" {
     protocol    = "tcp"
     self        = true
     description = "Druid MiddleManager"
+  }
+
+  # Kafka secondary (Druid ingestion) - MSK ports
+  ingress {
+    from_port       = 9092
+    to_port         = 9098
+    protocol        = "tcp"
+    cidr_blocks     = ["10.0.0.0/16"]
+    description     = "MSK secondary cluster access for Druid ingestion"
   }
 
   # Internal communication
@@ -256,4 +271,14 @@ resource "aws_autoscaling_group" "druid" {
 # ---------- Outputs ----------
 output "security_group_id" {
   value = aws_security_group.druid.id
+}
+
+output "broker_endpoint" {
+  description = "Internal endpoint for Druid Broker queries"
+  value       = "${var.project_name}-${var.environment}-druid-broker.internal:8082"
+}
+
+output "coordinator_endpoint" {
+  description = "Internal endpoint for Druid Coordinator"
+  value       = "${var.project_name}-${var.environment}-druid-coordinator.internal:8081"
 }

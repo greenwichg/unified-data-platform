@@ -153,7 +153,6 @@ resource "aws_ecs_task_definition" "redash_server" {
       { name = "REDASH_LOG_LEVEL",             value = "INFO" },
       { name = "REDASH_REDIS_URL",             value = "redis://${aws_elasticache_replication_group.redash.primary_endpoint_address}:6379/0" },
       { name = "REDASH_DATABASE_URL",          value = var.redash_database_url },
-      { name = "REDASH_COOKIE_SECRET",         value = "REPLACE_VIA_SECRETS_MANAGER" },
       { name = "REDASH_WEB_WORKERS",           value = "4" },
       { name = "REDASH_QUERY_RESULTS_CLEANUP_ENABLED", value = "true" },
       { name = "REDASH_QUERY_RESULTS_CLEANUP_MAX_AGE", value = "30" },

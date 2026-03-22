@@ -9,6 +9,7 @@ Provides utilities for:
 """
 
 import logging
+import os
 import time
 from typing import Dict, List, Optional
 
@@ -17,7 +18,7 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REGION = "us-east-1"
+DEFAULT_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 POLL_INTERVAL_SECONDS = 30
 MAX_POLL_ATTEMPTS = 240  # 2 hours at 30s intervals
 

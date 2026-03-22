@@ -10,6 +10,7 @@ Topics: menu, promo, orders, users, topics (generic events)
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -215,7 +216,10 @@ def create_sample_order_event(user_id: str, city: str = "Mumbai") -> ZomatoEvent
 
 
 if __name__ == "__main__":
-    bootstrap = os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098")
+    bootstrap = os.environ.get("MSK_BOOTSTRAP")
+    if not bootstrap:
+        logger.error("MSK_BOOTSTRAP environment variable is required")
+        sys.exit(1)
     schema_registry = os.environ.get("SCHEMA_REGISTRY_URL")
 
     producer = ZomatoEventProducer(

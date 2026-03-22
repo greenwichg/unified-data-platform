@@ -7,22 +7,22 @@ platform:
 
 # Aurora MySQL (Pipeline 1 & 2 source)
 aurora:
-  host: ${AURORA_HOST:localhost}
+  host: ${AURORA_HOST}
   port: 3306
   database: zomato
-  username: ${DB_USER:zomato_app}
-  # Password should always be provided via environment variable
-  jdbc_url: "jdbc:mysql://${AURORA_HOST:localhost}:3306/zomato"
+  username: ${DB_USER}
+  # Password must be provided via environment variable or Secrets Manager
+  jdbc_url: "jdbc:mysql://${AURORA_HOST}:3306/zomato"
 
 # Kafka Configuration
 kafka:
   cluster_1:
-    bootstrap_servers: ${MSK_BOOTSTRAP:b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098}
+    bootstrap_servers: ${MSK_BOOTSTRAP}
     description: "Primary Amazon MSK cluster for CDC and batch events"
     security_protocol: SASL_SSL
     sasl_mechanism: AWS_MSK_IAM
   cluster_2:
-    bootstrap_servers: ${MSK_BOOTSTRAP_2:b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098}
+    bootstrap_servers: ${MSK_BOOTSTRAP_2}
     description: "Secondary Amazon MSK cluster for real-time events to Druid"
     security_protocol: SASL_SSL
     sasl_mechanism: AWS_MSK_IAM
@@ -74,7 +74,7 @@ pipelines:
 
   pipeline2_cdc:
     description: "Aurora MySQL → Debezium → Kafka → Flink → Iceberg/S3"
-    debezium_connect_url: ${KAFKA_CONNECT_URL:http://localhost:8083}
+    debezium_connect_url: ${KAFKA_CONNECT_URL}
     flink_parallelism: 32
     checkpoint_interval_ms: 60000
 
@@ -109,8 +109,8 @@ athena:
 
 # Druid Configuration
 druid:
-  coordinator_url: ${DRUID_COORDINATOR_URL:http://localhost:8081}
-  broker_url: ${DRUID_BROKER_URL:http://localhost:8888}
+  coordinator_url: ${DRUID_COORDINATOR_URL}
+  broker_url: ${DRUID_BROKER_URL}
   datasources:
     - zomato_realtime_events
 

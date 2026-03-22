@@ -94,10 +94,10 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: zomato
-      MYSQL_USER: zomato_app
-      MYSQL_PASSWORD: zomato_pass
+      MYSQL_USER: ${MYSQL_USER:-zomato_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zomato_pass}
     command:
       - --server-id=1
       - --log-bin=mysql-bin
@@ -223,27 +223,27 @@ services:
     ports:
       - "8088:8088"
     environment:
-      SUPERSET_SECRET_KEY: "zomato-superset-secret-key-change-in-prod"
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-change-me-in-production}"
     depends_on:
       - trino
       - druid-broker
 
   # ==================== Object Storage (S3 mock) ====================
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-03-15T01-07-19Z
     hostname: minio
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2024-03-13T23-51-57Z
     depends_on:
       - minio
     entrypoint: >

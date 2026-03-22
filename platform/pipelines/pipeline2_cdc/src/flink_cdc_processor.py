@@ -274,15 +274,22 @@ def write_flink_job_config(config: dict, output_path: str) -> None:
 
 
 if __name__ == "__main__":
+    import sys
+
+    required = ["MSK_BOOTSTRAP", "S3_BUCKET"]
+    missing = [v for v in required if not os.environ.get(v)]
+    if missing:
+        print(f"ERROR: Required environment variables not set: {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
+
     config = generate_flink_job_config(
-        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
-        schema_registry_url=os.environ.get(
-            "SCHEMA_REGISTRY_URL", "http://localhost:8081"
-        ),
-        s3_bucket=os.environ.get("S3_BUCKET", "zomato-data-platform-dev-raw-data-lake"),
+        kafka_bootstrap=os.environ["MSK_BOOTSTRAP"],
+        schema_registry_url=os.environ.get("SCHEMA_REGISTRY_URL", ""),
+        s3_bucket=os.environ["S3_BUCKET"],
         checkpoint_dir=os.environ.get(
             "CHECKPOINT_DIR",
-            "s3://zomato-data-platform-dev-checkpoints/flink/pipeline2",
+            f"s3://{os.environ['S3_BUCKET'].replace('raw-data-lake', 'checkpoints')}/flink/pipeline2",
         ),
     )
-    write_flink_job_config(config, "/tmp/flink_cdc_job_config.json")
+    output_path = os.environ.get("CONFIG_OUTPUT_PATH", "/tmp/flink_cdc_job_config.json")
+    write_flink_job_config(config, output_path)

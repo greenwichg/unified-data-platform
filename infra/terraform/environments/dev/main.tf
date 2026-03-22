@@ -154,12 +154,13 @@ module "trino" {
 
 # ===================== Druid (Real-time OLAP) =====================
 module "druid" {
-  source                 = "../../modules/druid"
-  environment            = var.environment
-  vpc_id                 = module.vpc.vpc_id
-  subnet_ids             = module.vpc.private_subnet_ids
-  s3_deep_storage_bucket = module.s3.raw_bucket_name
-  tags                   = local.tags
+  source                             = "../../modules/druid"
+  environment                        = var.environment
+  vpc_id                             = module.vpc.vpc_id
+  subnet_ids                         = module.vpc.private_subnet_ids
+  s3_deep_storage_bucket             = module.s3.raw_bucket_name
+  kafka_secondary_security_group_id  = module.kafka_secondary.security_group_id
+  tags                               = local.tags
 }
 
 # ===================== ECS (Debezium / Services) =====================
@@ -217,6 +218,7 @@ module "jupyter" {
   private_subnet_ids = module.vpc.private_subnet_ids
   ecs_cluster_id     = module.ecs.cluster_id
   s3_data_bucket     = module.s3.raw_bucket_name
+  druid_broker_url   = "http://${module.druid.broker_endpoint}"
   certificate_arn    = var.certificate_arn
   tags               = local.tags
 }

@@ -38,14 +38,8 @@ logger = logging.getLogger("pipeline4_kafka_consumer_autoscaling")
 class ConsumerConfig:
     """Configuration for the Kafka consumer fleet."""
 
-    source_bootstrap_servers: str = os.getenv(
-        "MSK_BOOTSTRAP",
-        "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
-    )
-    target_bootstrap_servers: str = os.getenv(
-        "MSK_BOOTSTRAP_2",
-        "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
-    )
+    source_bootstrap_servers: str = field(default_factory=lambda: os.environ["MSK_BOOTSTRAP"])
+    target_bootstrap_servers: str = field(default_factory=lambda: os.environ["MSK_BOOTSTRAP_2"])
     source_topics: list[str] = field(
         default_factory=lambda: ["orders", "users", "menu", "promo"]
     )

@@ -11,6 +11,7 @@ Druid handles: 20B events/week, 8M queries/week, millisecond response.
 import json
 import logging
 import os
+import sys
 
 logging.basicConfig(
     level=logging.INFO,
@@ -333,24 +334,31 @@ def generate_flink_job_config(
 
 if __name__ == "__main__":
     # Generate configs for deployment
+    required = ["MSK_BOOTSTRAP", "MSK_BOOTSTRAP_2", "S3_BUCKET"]
+    missing = [v for v in required if not os.environ.get(v)]
+    if missing:
+        print(f"ERROR: Required environment variables not set: {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
+
     flink_config = generate_flink_job_config(
-        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
-        kafka_bootstrap_2=os.environ.get("MSK_BOOTSTRAP_2", "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
-        s3_bucket=os.environ.get("S3_BUCKET", "zomato-data-platform-dev-raw-data-lake"),
+        kafka_bootstrap=os.environ["MSK_BOOTSTRAP"],
+        kafka_bootstrap_2=os.environ["MSK_BOOTSTRAP_2"],
+        s3_bucket=os.environ["S3_BUCKET"],
         checkpoint_dir=os.environ.get(
             "CHECKPOINT_DIR",
-            "s3://zomato-data-platform-dev-checkpoints/flink/pipeline4",
+            f"s3://{os.environ['S3_BUCKET'].replace('raw-data-lake', 'checkpoints')}/flink/pipeline4",
         ),
     )
 
-    os.makedirs("/tmp/pipeline4", exist_ok=True)
-    with open("/tmp/pipeline4/flink_job_config.json", "w") as f:
+    output_dir = os.environ.get("CONFIG_OUTPUT_DIR", "/tmp/pipeline4")
+    os.makedirs(output_dir, exist_ok=True)
+    with open(f"{output_dir}/flink_job_config.json", "w") as f:
         json.dump(flink_config, f, indent=2)
 
     druid_spec = generate_druid_ingestion_spec(
-        kafka_bootstrap=os.environ.get("MSK_BOOTSTRAP_2", "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
+        kafka_bootstrap=os.environ["MSK_BOOTSTRAP_2"],
     )
-    with open("/tmp/pipeline4/druid_ingestion_spec.json", "w") as f:
+    with open(f"{output_dir}/druid_ingestion_spec.json", "w") as f:
         json.dump(druid_spec, f, indent=2)
 
     logger.info("Pipeline 4 configs generated in /tmp/pipeline4/")

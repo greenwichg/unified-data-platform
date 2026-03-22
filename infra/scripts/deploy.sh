@@ -41,7 +41,12 @@ case "$ACTION" in
         echo ">>> Running Terraform Apply..."
         cd "$TERRAFORM_DIR"
         terraform init -upgrade
-        terraform apply -auto-approve
+        if [[ "$ENVIRONMENT" == "prod" ]]; then
+            echo ">>> PRODUCTION deployment requires explicit confirmation"
+            terraform apply
+        else
+            terraform apply -auto-approve
+        fi
         echo ""
         echo ">>> Infrastructure deployed!"
         echo ""

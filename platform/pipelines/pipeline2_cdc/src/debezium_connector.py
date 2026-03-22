@@ -183,20 +183,21 @@ CONNECTOR_CONFIGS = {
 class DebeziumManager:
     """Manages Debezium connectors via Kafka Connect REST API."""
 
-    def __init__(self, connect_url: str):
+    def __init__(self, connect_url: str, timeout: int = 30):
         self.connect_url = connect_url.rstrip("/")
+        self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
 
     def list_connectors(self) -> list[str]:
         """List all registered connectors."""
-        resp = self.session.get(f"{self.connect_url}/connectors")
+        resp = self.session.get(f"{self.connect_url}/connectors", timeout=self.timeout)
         resp.raise_for_status()
         return resp.json()
 
     def get_connector_status(self, name: str) -> dict:
         """Get the status of a specific connector."""
-        resp = self.session.get(f"{self.connect_url}/connectors/{name}/status")
+        resp = self.session.get(f"{self.connect_url}/connectors/{name}/status", timeout=self.timeout)
         resp.raise_for_status()
         return resp.json()
 
@@ -208,6 +209,7 @@ class DebeziumManager:
         resp = self.session.put(
             f"{self.connect_url}/connectors/{name}/config",
             data=json.dumps(connector_config["config"]),
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         logger.info("Connector %s created/updated successfully", name)
@@ -215,25 +217,25 @@ class DebeziumManager:
 
     def delete_connector(self, name: str) -> None:
         """Delete a connector."""
-        resp = self.session.delete(f"{self.connect_url}/connectors/{name}")
+        resp = self.session.delete(f"{self.connect_url}/connectors/{name}", timeout=self.timeout)
         resp.raise_for_status()
         logger.info("Connector %s deleted", name)
 
     def restart_connector(self, name: str) -> None:
         """Restart a connector."""
-        resp = self.session.post(f"{self.connect_url}/connectors/{name}/restart")
+        resp = self.session.post(f"{self.connect_url}/connectors/{name}/restart", timeout=self.timeout)
         resp.raise_for_status()
         logger.info("Connector %s restarted", name)
 
     def pause_connector(self, name: str) -> None:
         """Pause a connector."""
-        resp = self.session.put(f"{self.connect_url}/connectors/{name}/pause")
+        resp = self.session.put(f"{self.connect_url}/connectors/{name}/pause", timeout=self.timeout)
         resp.raise_for_status()
         logger.info("Connector %s paused", name)
 
     def resume_connector(self, name: str) -> None:
         """Resume a paused connector."""
-        resp = self.session.put(f"{self.connect_url}/connectors/{name}/resume")
+        resp = self.session.put(f"{self.connect_url}/connectors/{name}/resume", timeout=self.timeout)
         resp.raise_for_status()
         logger.info("Connector %s resumed", name)
 
@@ -307,15 +309,22 @@ def deploy_all_connectors(
 
 if __name__ == "__main__":
     import os
+    import sys
+
+    required_vars = ["AURORA_HOST", "DB_USER", "DB_PASSWORD", "MSK_BOOTSTRAP", "AWS_REGION", "KAFKA_CONNECT_URL"]
+    missing = [v for v in required_vars if not os.environ.get(v)]
+    if missing:
+        logger.error("Required environment variables not set: %s", ", ".join(missing))
+        sys.exit(1)
 
     env = {
-        "AURORA_HOST": os.environ.get("AURORA_HOST", "localhost"),
-        "DB_USER": os.environ.get("DB_USER", "debezium"),
-        "DB_PASSWORD": os.environ.get("DB_PASSWORD", ""),
-        "MSK_BOOTSTRAP": os.environ.get("MSK_BOOTSTRAP", "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098"),
-        "AWS_REGION": os.environ.get("AWS_REGION", "ap-south-1"),
+        "AURORA_HOST": os.environ["AURORA_HOST"],
+        "DB_USER": os.environ["DB_USER"],
+        "DB_PASSWORD": os.environ["DB_PASSWORD"],
+        "MSK_BOOTSTRAP": os.environ["MSK_BOOTSTRAP"],
+        "AWS_REGION": os.environ["AWS_REGION"],
         "GLUE_REGISTRY_NAME": os.environ.get("GLUE_REGISTRY_NAME", "zomato-schema-registry"),
     }
 
-    connect = os.environ.get("KAFKA_CONNECT_URL", "http://localhost:8083")
+    connect = os.environ["KAFKA_CONNECT_URL"]
     deploy_all_connectors(connect, env)

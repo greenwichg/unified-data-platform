@@ -10,6 +10,7 @@ Schedule: Runs every 6 hours via Airflow on Amazon EMR
 
 import json
 import logging
+import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -104,7 +105,7 @@ def create_spark_session(app_name: str = "Pipeline1-BatchETL") -> SparkSession:
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
         .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog")
         .config("spark.sql.catalog.iceberg.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog")
-        .config("spark.sql.catalog.iceberg.warehouse", "s3://zomato-data-platform-prod-raw-data-lake/iceberg")
+        .config("spark.sql.catalog.iceberg.warehouse", f"s3://{os.environ.get('S3_BUCKET', 'zomato-data-platform-raw-data-lake')}/iceberg")
         .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
         .config("spark.sql.orc.impl", "native")
         .config("spark.sql.orc.enableVectorizedReader", "true")
@@ -323,7 +324,7 @@ def save_import_state(table: str, last_value: str, state_file: str) -> None:
 def run_batch_etl(
     jdbc_url: str,
     s3_bucket: str,
-    state_file: str = "/tmp/spark_jdbc_state.json",
+    state_file: str = os.environ.get("STATE_FILE", "/tmp/spark_jdbc_state.json"),
     tables: list[TableConfig] | None = None,
     write_iceberg: bool = True,
 ) -> dict:
@@ -369,6 +370,12 @@ def run_batch_etl(
                 results["quality_reports"].append(quality)
 
                 if not quality["passed"]:
+                    fail_on_error = os.environ.get("FAIL_ON_QUALITY_ERROR", "true").lower() == "true"
+                    if fail_on_error:
+                        raise ValueError(
+                            f"Quality checks failed for {config.table}. "
+                            f"Set FAIL_ON_QUALITY_ERROR=false to skip."
+                        )
                     logger.warning(
                         "Quality checks failed for %s — writing anyway with warning",
                         config.table,
@@ -402,23 +409,35 @@ def run_batch_etl(
 if __name__ == "__main__":
     import argparse
     import os
+    import signal
+
+    def _handle_shutdown(signum, frame):
+        logger.info("Received signal %s, shutting down gracefully...", signum)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _handle_shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
 
     parser = argparse.ArgumentParser(description="Pipeline 1: Aurora MySQL → Spark JDBC → Iceberg/ORC")
     parser.add_argument(
         "--jdbc-url",
-        default=os.environ.get(
-            "AURORA_JDBC_URL",
-            "jdbc:mysql://aurora-cluster.cluster-xxxxx.ap-south-1.rds.amazonaws.com:3306/zomato",
-        ),
+        default=os.environ.get("AURORA_JDBC_URL"),
     )
     parser.add_argument(
         "--s3-bucket",
-        default=os.environ.get("S3_BUCKET", "zomato-data-platform-prod-raw-data-lake"),
+        default=os.environ.get("S3_BUCKET"),
     )
     parser.add_argument("--table", default=None, help="Import a single table")
     parser.add_argument("--full-load", action="store_true", help="Ignore incremental state")
     parser.add_argument("--no-iceberg", action="store_true", help="Skip Iceberg writes, ORC only")
     args = parser.parse_args()
+
+    if not args.jdbc_url:
+        logger.error("AURORA_JDBC_URL environment variable is required")
+        sys.exit(1)
+    if not args.s3_bucket:
+        logger.error("S3_BUCKET environment variable is required")
+        sys.exit(1)
 
     table_configs = TABLE_CONFIGS
     if args.table:
