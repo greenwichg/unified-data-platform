@@ -36,8 +36,10 @@ kafka:
 
   # Secondary cluster: aggregated events to Druid
   cluster_2:
-    bootstrap_servers: ${KAFKA_BOOTSTRAP_2:kafka-rt1.zomato-data.internal:9093,kafka-rt2.zomato-data.internal:9093,kafka-rt3.zomato-data.internal:9093}
-    description: "Secondary Kafka cluster for real-time events to Druid"
+    bootstrap_servers: ${MSK_BOOTSTRAP_2:b-1.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098,b-2.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098,b-3.msk-zomato-rt.kafka.ap-south-1.amazonaws.com:9098}
+    security_protocol: SASL_SSL
+    sasl_mechanism: AWS_MSK_IAM
+    description: "Secondary MSK cluster for real-time events to Druid"
     topics:
       - name: druid-ingestion-events
         partitions: 64
@@ -46,7 +48,7 @@ kafka:
         partitions: 8
         consumer_group: alerting-consumer
 
-  schema_registry_url: ${SCHEMA_REGISTRY_URL:http://schema-registry.zomato-data.internal:8081}
+  schema_registry_url: ${GLUE_SCHEMA_REGISTRY_ENDPOINT:https://glue.ap-south-1.amazonaws.com}
 
   consumer_config:
     auto_offset_reset: latest
