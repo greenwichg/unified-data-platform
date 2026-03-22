@@ -34,8 +34,8 @@ COPY requirements.txt /opt/airflow/requirements.txt
 RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
 
 # Copy DAGs and plugins
-COPY --chown=airflow:root ../../airflow/dags/ /opt/airflow/dags/
-COPY --chown=airflow:root ../../airflow/plugins/ /opt/airflow/plugins/
+COPY --chown=airflow:root ../../platform/airflow/dags/ /opt/airflow/dags/
+COPY --chown=airflow:root ../../platform/airflow/plugins/ /opt/airflow/plugins/
 
 # Copy entrypoint script
 COPY entrypoint.sh /opt/airflow/entrypoint.sh

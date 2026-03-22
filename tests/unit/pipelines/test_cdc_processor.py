@@ -24,6 +24,7 @@ sys.path.insert(
         "..",
         "..",
         "..",
+        "platform",
         "pipelines",
         "pipeline2_cdc",
         "src",

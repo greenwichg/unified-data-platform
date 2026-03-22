@@ -59,11 +59,11 @@ jobs:
         run: |
           echo "=== Checking DAG parse integrity ==="
           ERRORS=0
-          for dag_file in airflow/dags/*.py; do
+          for dag_file in platform/airflow/dags/*.py; do
             echo "Parsing: $dag_file"
             if ! python -c "
           import sys
-          sys.path.insert(0, 'airflow/dags')
+          sys.path.insert(0, 'platform/airflow/dags')
           import importlib.util
           spec = importlib.util.spec_from_file_location('dag_module', '$dag_file')
           mod = importlib.util.module_from_spec(spec)
@@ -87,7 +87,7 @@ jobs:
       - name: DAG Import Validation
         run: |
           # Copy DAGs to Airflow's expected location
-          cp -r airflow/dags/* "$AIRFLOW_HOME/dags/" 2>/dev/null || mkdir -p "$AIRFLOW_HOME/dags" && cp -r airflow/dags/* "$AIRFLOW_HOME/dags/"
+          cp -r platform/airflow/dags/* "$AIRFLOW_HOME/dags/" 2>/dev/null || mkdir -p "$AIRFLOW_HOME/dags" && cp -r platform/airflow/dags/* "$AIRFLOW_HOME/dags/"
 
           echo "=== Listing DAGs via Airflow CLI ==="
           airflow dags list 2>&1 | tee /tmp/dag_list.txt
@@ -108,7 +108,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Pylint DAGs
         run: |
-          pylint airflow/dags/*.py \
+          pylint platform/airflow/dags/*.py \
             --disable=C0114,C0115,C0116,C0103,W0611,E0401,R0801 \
             --max-line-length=120 \
             --fail-under=7.0 \
@@ -163,7 +163,7 @@ jobs:
           import sys, importlib.util
           from pathlib import Path
 
-          dag_dir = Path('airflow/dags')
+          dag_dir = Path('platform/airflow/dags')
           sys.path.insert(0, str(dag_dir))
 
           from airflow.models import DAG

@@ -32,10 +32,11 @@ AWS_REGION ?= us-east-1
 
 # Project paths
 PROJECT_ROOT := $(shell pwd)
-PIPELINES_DIR := $(PROJECT_ROOT)/pipelines
+PIPELINES_DIR := $(PROJECT_ROOT)/platform/pipelines
+AIRFLOW_DIR := $(PROJECT_ROOT)/platform/airflow
 TESTS_DIR := $(PROJECT_ROOT)/tests
-DOCKER_DIR := $(PROJECT_ROOT)/docker
-TERRAFORM_DIR := $(PROJECT_ROOT)/terraform
+DOCKER_DIR := $(PROJECT_ROOT)/infra/docker
+TERRAFORM_DIR := $(PROJECT_ROOT)/infra/terraform
 
 # Docker image settings
 DOCKER_REGISTRY ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
@@ -109,14 +110,14 @@ test-pipeline4:  ## Run Pipeline 4 (Realtime) tests only
 
 lint:  ## Run all linters
 	@echo "Running ruff..."
-	ruff check $(PIPELINES_DIR) $(TESTS_DIR) scripts/ airflow/ --fix
+	ruff check $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/ --fix
 	@echo "Running ruff format check..."
 	ruff format --check $(PIPELINES_DIR) $(TESTS_DIR)
 	@echo "Linting passed."
 
 format:  ## Auto-format code with ruff
-	ruff format $(PIPELINES_DIR) $(TESTS_DIR) scripts/ airflow/
-	ruff check --fix $(PIPELINES_DIR) $(TESTS_DIR) scripts/ airflow/
+	ruff format $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/
+	ruff check --fix $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/
 	@echo "Formatting complete."
 
 typecheck:  ## Run mypy type checking

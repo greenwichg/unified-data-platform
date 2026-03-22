@@ -27,6 +27,7 @@ sys.path.insert(
         "..",
         "..",
         "..",
+        "platform",
         "pipelines",
         "pipeline4_realtime_events",
         "src",

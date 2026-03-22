@@ -113,7 +113,7 @@ spec:
                                     --statistics || true
 
                                 echo "=== Pylint (DAGs) ==="
-                                pylint airflow/dags/*.py \
+                                pylint platform/airflow/dags/*.py \
                                     --disable=C0114,C0115,C0116,C0103,W0611,E0401,R0801 \
                                     --fail-under=6.0 || true
                             '''
@@ -150,7 +150,7 @@ spec:
                                 airflow db init 2>/dev/null
 
                                 echo "=== Parsing DAGs ==="
-                                for f in airflow/dags/*.py; do
+                                for f in platform/airflow/dags/*.py; do
                                     echo "Parsing: $f"
                                     python -c "
 import sys, importlib.util
@@ -369,11 +369,11 @@ print('  OK')
                                     fi
 
                                     # Upload Spark scripts
-                                    aws s3 sync pipelines/pipeline3_dynamodb_streams/src/ \
+                                    aws s3 sync platform/pipelines/pipeline3_dynamodb_streams/src/ \
                                         "s3://${S3_ARTIFACTS}/spark-scripts/${VERSION}/"
 
                                     # Upload Airflow DAGs
-                                    aws s3 sync airflow/dags/ \
+                                    aws s3 sync platform/airflow/dags/ \
                                         "s3://${S3_ARTIFACTS}/airflow-dags/${VERSION}/"
 
                                     echo "Artifacts uploaded to s3://${S3_ARTIFACTS}/ (version: ${VERSION})"

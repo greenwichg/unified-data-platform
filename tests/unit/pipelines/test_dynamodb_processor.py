@@ -27,6 +27,7 @@ sys.path.insert(
         "..",
         "..",
         "..",
+        "platform",
         "pipelines",
         "pipeline3_dynamodb_streams",
         "src",

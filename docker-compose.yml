@@ -186,7 +186,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: Asia/Kolkata
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
+      - ./platform/airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
     command: webserver
 
@@ -200,7 +200,7 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
+      - ./platform/airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
     command: scheduler
 

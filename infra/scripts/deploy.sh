@@ -49,7 +49,7 @@ case "$ACTION" in
         MSK_ENABLED=true bash "../../$SCRIPTS_DIR/create-kafka-topics.sh"
         echo ""
         echo ">>> Deploying Debezium connectors..."
-        python3 "../../pipelines/pipeline2_cdc/src/debezium_connector.py"
+        python3 "../../platform/pipelines/pipeline2_cdc/src/debezium_connector.py"
         echo ""
         echo "Deployment complete!"
         ;;

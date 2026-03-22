@@ -21,7 +21,7 @@ import pytest
 # Path setup
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DAGS_DIR = REPO_ROOT / "airflow" / "dags"
+DAGS_DIR = REPO_ROOT / "platform" / "airflow" / "dags"
 
 # Ensure DAG directory is on the path so imports resolve
 sys.path.insert(0, str(DAGS_DIR))

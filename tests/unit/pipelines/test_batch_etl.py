@@ -25,6 +25,7 @@ sys.path.insert(
         "..",
         "..",
         "..",
+        "platform",
         "pipelines",
         "pipeline1_batch_etl",
         "src",

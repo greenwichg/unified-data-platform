@@ -23,10 +23,10 @@ import pytest
 # Add all pipeline source directories
 REPO_ROOT = Path(__file__).resolve().parents[2]
 for pipeline_src in [
-    "pipelines/pipeline1_batch_etl/src",
-    "pipelines/pipeline2_cdc/src",
-    "pipelines/pipeline3_dynamodb_streams/src",
-    "pipelines/pipeline4_realtime_events/src",
+    "platform/pipelines/pipeline1_batch_etl/src",
+    "platform/pipelines/pipeline2_cdc/src",
+    "platform/pipelines/pipeline3_dynamodb_streams/src",
+    "platform/pipelines/pipeline4_realtime_events/src",
 ]:
     sys.path.insert(0, str(REPO_ROOT / pipeline_src))
 
