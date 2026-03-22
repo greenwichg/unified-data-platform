@@ -1,6 +1,6 @@
 ###############################################################################
 # Redash Module - BI visualization platform on ECS Fargate
-# Internal analytics tool for ad-hoc queries against Trino, Druid, and Aurora
+# Internal analytics tool for ad-hoc queries against Athena, Druid, and Aurora
 ###############################################################################
 
 # ---------- Security Group ----------

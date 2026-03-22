@@ -127,7 +127,7 @@ class TestZomatoEventProducer:
     @patch("event_producer.Producer")
     def test_producer_config_idempotent(self, mock_producer_cls):
         from event_producer import ZomatoEventProducer
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         config = producer.producer_config
         assert config["enable.idempotence"] is True
         assert config["acks"] == "all"
@@ -139,7 +139,7 @@ class TestZomatoEventProducer:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         event = ZomatoEvent(event_type="ORDER_PLACED", user_id="usr_1")
         producer.send_event(event)
 
@@ -153,7 +153,7 @@ class TestZomatoEventProducer:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         event = ZomatoEvent(event_type="TOTALLY_UNKNOWN", user_id="usr_1")
         producer.send_event(event)
 
@@ -166,7 +166,7 @@ class TestZomatoEventProducer:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         events = [
             ZomatoEvent(event_type="ORDER_PLACED", user_id="usr_1"),
             ZomatoEvent(event_type="USER_LOGIN", user_id="usr_2"),
@@ -180,7 +180,7 @@ class TestZomatoEventProducer:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         producer._delivery_callback(None, MagicMock())
         assert producer._delivery_count == 1
 
@@ -190,7 +190,7 @@ class TestZomatoEventProducer:
         mock_instance = MagicMock()
         mock_producer_cls.return_value = mock_instance
 
-        producer = ZomatoEventProducer("localhost:9092")
+        producer = ZomatoEventProducer("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         producer._delivery_callback(Exception("fail"), MagicMock())
         assert producer._error_count == 1
 
@@ -268,7 +268,7 @@ class TestFlinkRealtimeSQL:
 class TestDruidIngestionSpec:
     def test_generate_spec_structure(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         assert spec["type"] == "kafka"
         assert "spec" in spec
         assert "dataSchema" in spec["spec"]
@@ -282,19 +282,19 @@ class TestDruidIngestionSpec:
 
     def test_default_datasource(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         assert spec["spec"]["dataSchema"]["dataSource"] == "zomato_realtime_events"
 
     def test_timestamp_spec(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         ts = spec["spec"]["dataSchema"]["timestampSpec"]
         assert ts["column"] == "event_timestamp"
         assert ts["format"] == "iso"
 
     def test_dimensions(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         dims = spec["spec"]["dataSchema"]["dimensionsSpec"]["dimensions"]
         assert "event_type" in dims
         assert "user_id" in dims
@@ -302,7 +302,7 @@ class TestDruidIngestionSpec:
 
     def test_metrics_include_revenue(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         metrics = spec["spec"]["dataSchema"]["metricsSpec"]
         metric_names = {m["name"] for m in metrics}
         assert "total_revenue" in metric_names
@@ -311,7 +311,7 @@ class TestDruidIngestionSpec:
 
     def test_hll_sketch_for_unique_users(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         metrics = spec["spec"]["dataSchema"]["metricsSpec"]
         hll = next(m for m in metrics if m["name"] == "unique_users")
         assert hll["type"] == "HLLSketchBuild"
@@ -319,7 +319,7 @@ class TestDruidIngestionSpec:
 
     def test_granularity_rollup_enabled(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         gran = spec["spec"]["dataSchema"]["granularitySpec"]
         assert gran["rollup"] is True
         assert gran["segmentGranularity"] == "HOUR"
@@ -327,7 +327,7 @@ class TestDruidIngestionSpec:
 
     def test_tuning_config(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098")
         tuning = spec["spec"]["tuningConfig"]
         assert tuning["taskCount"] == 8
         assert tuning["replicas"] == 2

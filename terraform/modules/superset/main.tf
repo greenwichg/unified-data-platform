@@ -1,6 +1,6 @@
 ###############################################################################
 # Superset Module - BI/Visualization platform on ECS Fargate
-# Primary dashboarding tool for Zomato analytics; connects to Trino and Druid
+# Primary dashboarding tool for Zomato analytics; connects to Athena and Druid
 ###############################################################################
 
 # ---------- Security Group ----------

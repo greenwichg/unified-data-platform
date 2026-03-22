@@ -3,12 +3,12 @@ End-to-end test for Pipeline 1: Batch ETL (Aurora MySQL -> Spark JDBC -> Iceberg
 
 Since Spark + Aurora are not available in the test environment, this test
 validates the data-lake leg of the pipeline: ORC data written to S3 is
-queryable via Trino.
+queryable via Amazon Athena (serverless, Trino-based).
 
 Flow tested:
   1. Write ORC-format data to MinIO (S3-compatible)
-  2. Register the data in Trino via the Hive connector
-  3. Verify the data is queryable and returns correct results
+  2. Register the data in the AWS Glue Data Catalog
+  3. Verify the data is queryable via Athena and returns correct results
 """
 
 import io
@@ -97,7 +97,7 @@ SAMPLE_USERS = [
 # Tests
 # ---------------------------------------------------------------------------
 class TestPipeline1EndToEnd:
-    """End-to-end test: ORC data on S3 -> queryable via Trino."""
+    """End-to-end test: ORC data on S3 -> queryable via Athena (Trino-based)."""
 
     @pytest.fixture(autouse=True)
     def setup_orc_data(self, upload_test_data, s3_buckets, s3_client):
@@ -182,18 +182,18 @@ class TestPipeline1EndToEnd:
         assert set(city_counts.keys()) == {"Mumbai", "Delhi", "Bangalore", "Hyderabad"}
         assert city_counts["Mumbai"] == 50  # 200 / 4
 
-    def test_trino_query_orders(self, trino_connection):
-        """Verify that Trino's memory connector works (smoke test for Trino availability)."""
-        cursor = trino_connection.cursor()
+    def test_athena_query_orders(self, athena_connection):
+        """Verify that Athena-compatible engine works (smoke test for Athena availability)."""
+        cursor = athena_connection.cursor()
         cursor.execute("SELECT 1 AS test_col")
         rows = cursor.fetchall()
         assert rows == [(1,)]
 
-    def test_trino_create_and_query_table(self, trino_connection):
-        """Create a table in Trino memory connector and query it."""
-        cursor = trino_connection.cursor()
+    def test_athena_create_and_query_table(self, athena_connection):
+        """Create a table in Athena-compatible engine (backed by Glue Data Catalog) and query it."""
+        cursor = athena_connection.cursor()
 
-        # Create a table in memory catalog
+        # Create a table in memory catalog (simulates Glue Data Catalog-backed Athena table)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS memory.default.test_orders (
                 order_id VARCHAR,

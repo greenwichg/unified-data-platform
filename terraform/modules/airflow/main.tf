@@ -1,6 +1,6 @@
 ###############################################################################
 # Airflow Module - MWAA (Managed Workflows for Apache Airflow)
-# Orchestrates ETL jobs, Trino queries, and pipeline scheduling
+# Orchestrates ETL jobs, Athena queries, and pipeline scheduling
 ###############################################################################
 
 variable "project_name" {

@@ -1,11 +1,11 @@
 """
-Unit tests for Trino SQL DDL and query syntax validation.
+Unit tests for Athena (Trino-based) SQL DDL and query syntax validation.
 
 Tests cover:
   - Iceberg table DDL syntax correctness
   - Partition column definitions
-  - Hive/Iceberg catalog property validation
-  - Trino SQL query syntax for analytics queries
+  - Glue Data Catalog / Iceberg catalog property validation
+  - Athena SQL query syntax for analytics queries
   - Schema/column naming conventions
 """
 
@@ -161,10 +161,10 @@ class TestIcebergTableProperties:
 
 
 # ---------------------------------------------------------------------------
-# Trino analytics query syntax tests
+# Athena analytics query syntax tests
 # ---------------------------------------------------------------------------
-class TestTrinoQuerySyntax:
-    """Validate common Trino query patterns used in the platform."""
+class TestAthenaQuerySyntax:
+    """Validate common Athena (Trino-based) query patterns used in the platform."""
 
     def test_date_partition_filter(self):
         query = """

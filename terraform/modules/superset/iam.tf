@@ -1,6 +1,6 @@
 ###############################################################################
 # Superset Module - IAM Roles and Policies
-# Grants access to query Trino, Druid, Aurora, and S3 data sources
+# Grants access to query Athena, Druid, Aurora, and S3 data sources
 ###############################################################################
 
 # ---------- ECS Task Execution Role ----------

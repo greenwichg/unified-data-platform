@@ -1,6 +1,6 @@
 ###############################################################################
 # Redash Module - IAM Roles and Policies
-# Grants access to query Trino, Druid, Aurora, and read data sources
+# Grants access to query Athena, Druid, Aurora, and read data sources
 ###############################################################################
 
 # ---------- ECS Task Execution Role ----------

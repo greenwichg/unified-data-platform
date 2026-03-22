@@ -60,9 +60,15 @@ setup_variables() {
     echo "[entrypoint] Setting up default Airflow Variables..."
 
     # Only set variables that aren't already configured
+    # NOTE: In production, Athena replaces Trino and Amazon MSK replaces self-hosted Kafka.
+    # Trino variables are kept for local dev; production DAGs use Athena workgroup settings.
     airflow variables set trino_etl_host "${TRINO_ETL_HOST:-trino}" 2>/dev/null || true
     airflow variables set trino_adhoc_host "${TRINO_ADHOC_HOST:-trino}" 2>/dev/null || true
+    airflow variables set athena_workgroup "${ATHENA_WORKGROUP:-zomato-etl}" 2>/dev/null || true
+    airflow variables set athena_output_location "${ATHENA_OUTPUT_LOCATION:-s3://zomato-data-platform-athena-results/}" 2>/dev/null || true
+    # NOTE: In production, use MSK bootstrap servers with IAM auth.
     airflow variables set kafka_bootstrap "${KAFKA_BOOTSTRAP:-kafka-1:29092}" 2>/dev/null || true
+    airflow variables set msk_bootstrap "${MSK_BOOTSTRAP:-}" 2>/dev/null || true
     airflow variables set emr_cluster_id "${EMR_CLUSTER_ID:-}" 2>/dev/null || true
     airflow variables set s3_raw_bucket "${S3_RAW_BUCKET:-zomato-data-platform-dev-raw-data-lake}" 2>/dev/null || true
     airflow variables set s3_processed_bucket "${S3_PROCESSED_BUCKET:-zomato-data-platform-dev-processed-data-lake}" 2>/dev/null || true
@@ -79,12 +85,19 @@ setup_connections() {
         --conn-extra '{"region_name": "us-east-1"}' \
         2>/dev/null || true
 
+    # NOTE: In production, use athena_default instead of trino_default.
+    # Trino connection is kept for local development only.
     airflow connections add trino_default \
         --conn-type trino \
         --conn-host "${TRINO_ETL_HOST:-trino}" \
         --conn-port 8080 \
         --conn-schema zomato \
         --conn-extra '{"catalog": "iceberg"}' \
+        2>/dev/null || true
+
+    airflow connections add athena_default \
+        --conn-type aws \
+        --conn-extra "{\"region_name\": \"${AWS_REGION:-us-east-1}\", \"work_group\": \"${ATHENA_WORKGROUP:-zomato-etl}\", \"output_location\": \"${ATHENA_OUTPUT_LOCATION:-s3://zomato-data-platform-athena-results/}\"}" \
         2>/dev/null || true
 
     echo "[entrypoint] Connections configured."

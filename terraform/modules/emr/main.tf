@@ -254,6 +254,7 @@ resource "aws_emr_cluster" "spark" {
     {
       Classification = "spark-hive-site"
       Properties = {
+        # Using AWS Glue Data Catalog as the metastore (replaces self-hosted Hive Metastore)
         "hive.metastore.client.factory.class" = "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
       }
     }

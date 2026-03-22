@@ -68,7 +68,7 @@ resource "aws_s3_bucket" "data_lake_processed" {
 
   tags = merge(var.tags, {
     Name    = "${var.project_name}-${var.environment}-processed-data-lake"
-    Purpose = "Processed ORC/Iceberg data for Trino queries"
+    Purpose = "Processed ORC/Iceberg data for Athena queries"
   })
 }
 

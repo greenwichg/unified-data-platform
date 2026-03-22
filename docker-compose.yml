@@ -4,7 +4,9 @@
 ###############################################################################
 
 services:
-  # ==================== Message Bus ====================
+  # ==================== Message Bus (Local Dev Only) ====================
+  # PRODUCTION NOTE: In production, Amazon MSK (with IAM auth) replaces self-hosted
+  # Kafka/ZooKeeper, and AWS Glue Schema Registry replaces Confluent Schema Registry.
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     hostname: zookeeper
@@ -51,6 +53,7 @@ services:
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+  # PRODUCTION NOTE: In production, AWS Glue Schema Registry replaces Confluent Schema Registry.
   schema-registry:
     image: confluentinc/cp-schema-registry:7.6.0
     hostname: schema-registry
@@ -132,7 +135,9 @@ services:
         taskmanager.numberOfTaskSlots: 4
         taskmanager.memory.process.size: 4gb
 
-  # ==================== Query Engine ====================
+  # ==================== Query Engine (Local Dev Only) ====================
+  # PRODUCTION NOTE: In production, Amazon Athena (serverless) replaces Trino,
+  # and AWS Glue Data Catalog replaces Hive Metastore.
   trino:
     image: trinodb/trino:435
     hostname: trino

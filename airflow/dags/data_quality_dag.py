@@ -32,7 +32,7 @@ def check_data_freshness(**context):
         "pipeline3_dynamodb": {"max_lag_hours": 2, "table": "zomato_processed.orders"},
         "pipeline4_realtime": {"max_lag_minutes": 5, "table": "druid.zomato_realtime_events"},
     }
-    # In production, this would query Trino/Druid to check freshness
+    # In production, this would query Athena/Druid to check freshness
     return checks
 
 
@@ -78,19 +78,21 @@ with DAG(
             BashOperator(
                 task_id=f"schema_check_{table}",
                 bash_command=(
-                    f"trino --server {TRINO_HOST}:8080 "
-                    f"--execute \"DESCRIBE iceberg.zomato.{table}\" "
-                    f"| wc -l"
+                    f"aws athena start-query-execution "
+                    f"--query-string \"DESCRIBE iceberg.zomato.{table}\" "
+                    f"--work-group reporting "
+                    f"--result-configuration OutputLocation={ATHENA_OUTPUT_S3}"
                 ),
             )
 
-    # Check Kafka consumer lag
+    # Check MSK consumer lag
     kafka_lag_check = BashOperator(
-        task_id="check_kafka_lag",
+        task_id="check_msk_lag",
         bash_command=(
             "kafka-consumer-groups.sh "
-            "--bootstrap-server {{ var.value.kafka_bootstrap }} "
+            "--bootstrap-server {{ var.value.msk_bootstrap_servers }} "
             "--describe --all-groups "
+            "--command-config /etc/kafka/msk-client.properties "
             "| awk '$6 > 1000000 {print \"HIGH LAG:\", $0}'"
         ),
     )

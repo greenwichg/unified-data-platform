@@ -77,10 +77,10 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 12
         height = 6
         properties = {
-          title   = "Trino - Active Queries"
-          metrics = [["${var.project_name}", "TrinoActiveQueries", "Environment", var.environment]]
+          title   = "Athena - Active Queries"
+          metrics = [["AWS/Athena", "TotalExecutionTime", "WorkGroup", "${var.project_name}-${var.environment}-adhoc"]]
           period  = 60
-          stat    = "Average"
+          stat    = "SampleCount"
           region  = data.aws_region.current.name
         }
       },

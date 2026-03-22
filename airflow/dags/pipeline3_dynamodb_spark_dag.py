@@ -77,12 +77,14 @@ with DAG(
         timeout=3600,
     )
 
-    # Trigger Trino table refresh after new ORC data lands
-    refresh_trino = BashOperator(
-        task_id="refresh_trino_tables",
+    # Trigger Glue Data Catalog partition refresh after new ORC data lands
+    refresh_glue_catalog = BashOperator(
+        task_id="refresh_glue_catalog",
         bash_command=(
-            "trino --server trino-etl:8080 --catalog iceberg --schema zomato "
-            "--execute \"CALL system.sync_partition_metadata('zomato', 'orders', 'FULL')\""
+            "aws athena start-query-execution "
+            "--query-string \"MSCK REPAIR TABLE iceberg.zomato.orders\" "
+            "--work-group etl "
+            "--result-configuration OutputLocation={{ var.value.athena_query_results_s3 }}"
         ),
     )
 
@@ -91,4 +93,4 @@ with DAG(
         bash_command="echo 'Pipeline 3 DynamoDB-Spark ETL completed - {{ ts }}'",
     )
 
-    start >> submit_spark >> wait_spark >> refresh_trino >> end
+    start >> submit_spark >> wait_spark >> refresh_glue_catalog >> end
