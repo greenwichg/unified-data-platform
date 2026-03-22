@@ -1,5 +1,5 @@
 # DEPRECATED: This Trino catalog template is no longer used.
-# Catalogs are now managed by AWS Glue Data Catalog (see terraform/modules/trino/main.tf).
+# Catalogs are now managed by AWS Glue Data Catalog (see terraform/modules/athena/main.tf).
 # Retained for reference during migration. Do not modify.
 connector.name=mysql
 connection-url=jdbc:mysql://${mysql_host}:${mysql_port}/${mysql_database}

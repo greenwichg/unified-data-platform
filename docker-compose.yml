@@ -144,8 +144,8 @@ services:
     ports:
       - "8085:8080"
     volumes:
-      - ./docker/trino/catalog:/etc/trino/catalog
-      - ./docker/trino/config.properties:/etc/trino/config.properties
+      - ./docker/athena/catalog:/etc/trino/catalog
+      - ./docker/athena/config.properties:/etc/trino/config.properties
 
   # ==================== Real-time OLAP ====================
   druid-coordinator:

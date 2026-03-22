@@ -109,7 +109,7 @@ module "emr" {
 # ===================== Athena (serverless, replacing self-hosted Trino on ECS) =====================
 # Glue Data Catalog replaces the self-hosted Hive Metastore.
 module "trino" {
-  source      = "../../modules/trino"
+  source      = "../../modules/athena"
   environment = var.environment
   vpc_id      = module.vpc.vpc_id
   subnet_ids  = module.vpc.private_subnet_ids

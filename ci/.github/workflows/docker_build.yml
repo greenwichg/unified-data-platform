@@ -66,8 +66,8 @@ jobs:
             {"name":"flink","context":"docker/flink","dockerfile":"docker/flink/Dockerfile"},
             {"name":"spark","context":"docker/spark","dockerfile":"docker/spark/Dockerfile"},
             {"name":"airflow","context":"docker/airflow","dockerfile":"docker/airflow/Dockerfile"},
-            {"name":"kafka","context":"docker/kafka","dockerfile":"docker/kafka/Dockerfile"},
-            {"name":"trino","context":"docker/trino","dockerfile":"docker/trino/Dockerfile"},
+            {"name":"msk","context":"docker/msk","dockerfile":"docker/msk/Dockerfile"},
+            {"name":"athena","context":"docker/athena","dockerfile":"docker/athena/Dockerfile"},
             {"name":"druid","context":"docker/druid","dockerfile":"docker/druid/Dockerfile"},
             {"name":"debezium","context":"docker","dockerfile":"docker/debezium/Dockerfile"}
           ]'
