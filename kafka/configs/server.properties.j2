@@ -1,9 +1,19 @@
+# DEPRECATED: Self-hosted Kafka replaced by Amazon MSK with IAM authentication.
 # NOTE: Kafka broker configuration is now managed via AWS MSK Configuration.
 # This file is kept as reference for the MSK configuration settings.
 #
+# For MSK configuration, use the AWS Console or Terraform module at
+# terraform/modules/msk/ to manage broker settings.
+#
+# Key MSK differences from self-hosted:
+#   - Authentication: IAM auth replaces SSL client certs
+#   - ZooKeeper: Managed by MSK (not directly accessible)
+#   - Storage: EBS-backed (not NVMe), auto-scaling available
+#   - Schema Registry: AWS Glue Schema Registry replaces Confluent SR
+#
 # ============================================================================
 # Zomato Data Platform - Kafka Broker Configuration (REFERENCE ONLY)
-# Template: Jinja2 (rendered by Ansible)
+# Template: Jinja2 (rendered by Ansible) - NO LONGER DEPLOYED
 # Cluster: zomato-kafka-prod (now AWS MSK managed)
 # Throughput target: 450M messages/min across cluster
 # MSK instance type: r8g.4xlarge

@@ -21,7 +21,8 @@
 
 .PHONY: build test test-unit test-int test-e2e lint format \
         deploy-dev deploy-staging deploy-prod \
-        docker-build docker-up docker-down clean help
+        docker-build docker-up docker-down clean help \
+        migrate-athena msk-topics ops-athena-health
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -154,6 +155,7 @@ docker-build:  ## Build all Docker images
 
 docker-build-push: docker-build  ## Build and push Docker images to ECR
 	@echo "Pushing images to $(DOCKER_REGISTRY)..."
+	@echo "NOTE: kafka and trino images are for local dev only (prod uses MSK and Athena)"
 	aws ecr get-login-password --region $(AWS_REGION) | \
 		docker login --username AWS --password-stdin $(DOCKER_REGISTRY)
 	@for service in airflow flink spark trino druid kafka; do \
@@ -166,10 +168,10 @@ docker-up:  ## Start local Docker Compose stack
 	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "Services starting. Access points:"
-	@echo "  Kafka:           localhost:9092"
-	@echo "  Schema Registry: localhost:8081"
+	@echo "  Kafka (local):   localhost:9092  (prod: Amazon MSK)"
+	@echo "  Schema Registry: localhost:8081  (prod: AWS Glue Schema Registry)"
 	@echo "  Flink UI:        localhost:8084"
-	@echo "  Trino:           localhost:8085"
+	@echo "  Trino (local):   localhost:8085  (prod: Amazon Athena)"
 	@echo "  Druid:           localhost:8888"
 	@echo "  Airflow:         localhost:8080"
 	@echo "  MinIO Console:   localhost:9001"
@@ -190,25 +192,33 @@ docker-ps:  ## Show running containers
 migrate-aurora:  ## Run Aurora MySQL schema migrations
 	$(PYTHON) scripts/migration/schema_migration.py migrate --target aurora --env $(ENV)
 
-migrate-trino:  ## Run Trino/Iceberg schema migrations
+migrate-athena:  ## Run Athena/Iceberg schema migrations (production)
+	$(PYTHON) scripts/migration/schema_migration.py migrate --target athena --env $(ENV)
+
+migrate-trino:  ## Run Trino/Iceberg schema migrations (local dev only)
 	$(PYTHON) scripts/migration/schema_migration.py migrate --target trino --env $(ENV)
 
 migrate-status:  ## Show migration status for all targets
 	$(PYTHON) scripts/migration/schema_migration.py status --target aurora --env $(ENV)
 	$(PYTHON) scripts/migration/schema_migration.py status --target trino --env $(ENV)
 
-kafka-topics:  ## Create Kafka topics
+kafka-topics:  ## Create Kafka topics (local dev)
 	bash scripts/create-kafka-topics.sh
+
+msk-topics:  ## Create Kafka topics on MSK (production)
+	MSK_ENABLED=true bash scripts/create-kafka-topics.sh
 
 # ==============================================================================
 # Operations
 # ==============================================================================
 
-ops-kafka-rebalance:  ## Trigger Kafka partition rebalance (dry-run)
+ops-kafka-rebalance:  ## Trigger Kafka partition rebalance - dry-run (local dev; MSK handles this automatically)
 	bash scripts/ops/kafka_rebalance.sh --dry-run
 
-ops-trino-health:  ## Check Trino cluster health
+ops-athena-health:  ## Check Athena workgroup health (replaces Trino health check)
 	bash scripts/ops/trino_cluster_health.sh
+
+ops-trino-health: ops-athena-health  ## DEPRECATED: Alias for ops-athena-health
 
 ops-druid-compact:  ## Trigger Druid segment compaction
 	bash scripts/ops/druid_compaction_trigger.sh
