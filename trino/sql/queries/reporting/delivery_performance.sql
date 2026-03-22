@@ -43,7 +43,7 @@ WITH current_day_hourly AS (
         surge_pricing_active,
         surge_multiplier_avg,
         rain_affected_deliveries
-    FROM gold.delivery_metrics
+    FROM zomato_gold.delivery_metrics
     WHERE metric_date = CURRENT_DATE
       AND metric_hour IS NOT NULL
 ),
@@ -55,7 +55,7 @@ previous_day AS (
         AVG(avg_total_delivery_time)    AS avg_time_prev,
         AVG(sla_breach_rate)            AS sla_breach_rate_prev,
         AVG(rider_utilization_rate)     AS rider_util_prev
-    FROM gold.delivery_metrics
+    FROM zomato_gold.delivery_metrics
     WHERE metric_date = CURRENT_DATE - INTERVAL '1' DAY
       AND metric_hour IS NOT NULL
     GROUP BY metric_hour, city_id
@@ -77,7 +77,7 @@ weekly_baseline AS (
             AVG(avg_total_delivery_time)    AS avg_total_delivery_time,
             AVG(sla_breach_rate)            AS sla_breach_rate,
             AVG(rider_utilization_rate)     AS rider_utilization_rate
-        FROM gold.delivery_metrics
+        FROM zomato_gold.delivery_metrics
         WHERE metric_date BETWEEN CURRENT_DATE - INTERVAL '7' DAY
                                AND CURRENT_DATE - INTERVAL '1' DAY
           AND metric_hour IS NOT NULL
@@ -194,7 +194,7 @@ SELECT
         / NULLIF(SUM(completed_deliveries), 0), 2)      AS cost_per_delivery,
     ROUND(AVG(avg_delivery_rating), 2)                  AS avg_rating,
     SUM(rain_affected_deliveries)                       AS rain_affected
-FROM gold.delivery_metrics
+FROM zomato_gold.delivery_metrics
 WHERE metric_date = CURRENT_DATE
   AND metric_hour IS NOT NULL
 GROUP BY metric_date, city_name

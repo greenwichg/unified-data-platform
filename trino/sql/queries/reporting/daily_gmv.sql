@@ -23,7 +23,7 @@ WITH daily_current AS (
         AVG(avg_delivery_time_min)                   AS avg_delivery_time,
         SUM(completed_orders) * 1.0
             / NULLIF(SUM(total_orders), 0)           AS completion_rate
-    FROM gold.daily_order_metrics
+    FROM zomato_gold.daily_order_metrics
     WHERE metric_date = CURRENT_DATE
     GROUP BY metric_date, city_id, city_name
 ),
@@ -34,7 +34,7 @@ daily_previous AS (
         SUM(total_orders)               AS orders_prev,
         SUM(net_revenue)                AS revenue_prev,
         SUM(unique_customers)           AS customers_prev
-    FROM gold.daily_order_metrics
+    FROM zomato_gold.daily_order_metrics
     WHERE metric_date = CURRENT_DATE - INTERVAL '1' DAY
     GROUP BY city_id
 ),
@@ -49,7 +49,7 @@ weekly_avg AS (
             metric_date,
             SUM(gross_merchandise_value) AS gross_merchandise_value,
             SUM(total_orders)            AS total_orders
-        FROM gold.daily_order_metrics
+        FROM zomato_gold.daily_order_metrics
         WHERE metric_date BETWEEN CURRENT_DATE - INTERVAL '7' DAY AND CURRENT_DATE - INTERVAL '1' DAY
         GROUP BY city_id, metric_date
     ) t
@@ -108,6 +108,6 @@ SELECT
     SUM(pro_member_gmv)                              AS pro_member_gmv,
     ROUND(SUM(pro_member_gmv) / NULLIF(SUM(gross_merchandise_value), 0) * 100, 2)
         AS pro_gmv_share_pct
-FROM gold.daily_order_metrics
+FROM zomato_gold.daily_order_metrics
 WHERE metric_date = CURRENT_DATE
 GROUP BY metric_date;

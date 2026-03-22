@@ -25,7 +25,7 @@ WITH city_daily AS (
         SUM(sla_breach_count)           AS sla_breaches,
         SUM(total_orders) * 1.0
             / NULLIF(SUM(active_riders), 0) AS orders_per_rider
-    FROM gold.daily_order_metrics
+    FROM zomato_gold.daily_order_metrics
     WHERE metric_date BETWEEN CURRENT_DATE - INTERVAL '30' DAY AND CURRENT_DATE
     GROUP BY city_id, city_name, metric_date
 ),
@@ -64,7 +64,7 @@ city_prev_30d AS (
         city_id,
         SUM(total_orders)               AS orders_prev_30d,
         SUM(gross_merchandise_value)    AS gmv_prev_30d
-    FROM gold.daily_order_metrics
+    FROM zomato_gold.daily_order_metrics
     WHERE metric_date BETWEEN CURRENT_DATE - INTERVAL '60' DAY
                           AND CURRENT_DATE - INTERVAL '31' DAY
     GROUP BY city_id

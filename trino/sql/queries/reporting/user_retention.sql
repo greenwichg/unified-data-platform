@@ -16,9 +16,9 @@ WITH cohort_retention AS (
         COUNT(DISTINCT CASE WHEN has_order_m3 THEN user_id END)        AS active_m3,
         COUNT(DISTINCT CASE WHEN has_order_m6 THEN user_id END)        AS active_m6,
         COUNT(DISTINCT CASE WHEN has_order_m12 THEN user_id END)       AS active_m12
-    FROM gold.user_cohorts
+    FROM zomato_gold.user_cohorts
     WHERE snapshot_date = (
-        SELECT MAX(snapshot_date) FROM gold.user_cohorts
+        SELECT MAX(snapshot_date) FROM zomato_gold.user_cohorts
     )
     GROUP BY cohort_month, city_name
 )
@@ -59,9 +59,9 @@ WITH segment_metrics AS (
         COUNT(DISTINCT CASE WHEN is_pro_member THEN user_id END)
                                                     AS pro_member_count,
         AVG(churn_probability_30d)                  AS avg_churn_probability
-    FROM gold.user_cohorts
+    FROM zomato_gold.user_cohorts
     WHERE snapshot_date = (
-        SELECT MAX(snapshot_date) FROM gold.user_cohorts
+        SELECT MAX(snapshot_date) FROM zomato_gold.user_cohorts
     )
     GROUP BY city_name, user_segment, lifecycle_stage
 )
@@ -116,9 +116,9 @@ SELECT
         churn_probability_30d * estimated_ltv, 2
     ) AS intervention_priority_score
 
-FROM gold.user_cohorts
+FROM zomato_gold.user_cohorts
 WHERE snapshot_date = (
-    SELECT MAX(snapshot_date) FROM gold.user_cohorts
+    SELECT MAX(snapshot_date) FROM zomato_gold.user_cohorts
 )
 AND churn_risk_tier IN ('high', 'critical')
 AND lifecycle_stage != 'churned'
@@ -141,7 +141,7 @@ WITH weekly_retention AS (
                              THEN user_id END)                      AS resurrected,
         AVG(estimated_ltv)                                          AS avg_ltv,
         AVG(churn_probability_30d)                                  AS avg_churn_prob
-    FROM gold.user_cohorts
+    FROM zomato_gold.user_cohorts
     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '12' WEEK
     GROUP BY snapshot_date
 )

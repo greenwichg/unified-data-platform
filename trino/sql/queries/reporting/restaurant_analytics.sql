@@ -37,7 +37,7 @@ WITH restaurant_current AS (
         r.city_rank_by_orders,
         r.city_rank_by_rating,
         r.city_rank_by_gmv
-    FROM curated.restaurant_curated r
+    FROM zomato_curated.restaurant_curated r
     WHERE r.snapshot_date = CURRENT_DATE
 ),
 city_benchmarks AS (
@@ -56,7 +56,7 @@ city_benchmarks AS (
                                         AS p75_orders_30d,
         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY gmv_30d)
                                         AS p75_gmv_30d
-    FROM curated.restaurant_curated
+    FROM zomato_curated.restaurant_curated
     WHERE snapshot_date = CURRENT_DATE
       AND is_active = true
     GROUP BY city_id, cuisine_primary, price_segment
@@ -78,7 +78,7 @@ daily_trend AS (
         LAG(total_orders, 7) OVER (
             PARTITION BY restaurant_id ORDER BY metric_date
         ) AS orders_7d_ago
-    FROM gold.restaurant_performance
+    FROM zomato_gold.restaurant_performance
     WHERE metric_date >= CURRENT_DATE - INTERVAL '30' DAY
 )
 SELECT
