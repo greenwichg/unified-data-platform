@@ -2,6 +2,12 @@
 # ============================================================================
 # Zomato Data Platform - Kafka Partition Reassignment Script
 #
+# MIGRATION NOTE: In production, Amazon MSK handles partition management.
+# MSK provides managed broker scaling which triggers automatic partition
+# reassignment. Manual reassignment should rarely be needed with MSK.
+# If manual reassignment is required against MSK, set KAFKA_BOOTSTRAP_SERVERS
+# to the MSK bootstrap servers and use --command-config with IAM auth props.
+#
 # Generates and executes partition reassignment plans for Kafka topics.
 # Used during broker additions, decommissions, or rebalancing.
 #
@@ -13,7 +19,8 @@
 #
 # Prerequisites:
 #   - kafka-reassign-partitions.sh in PATH (from Kafka installation)
-#   - KAFKA_BOOTSTRAP_SERVERS and KAFKA_ZOOKEEPER set or passed as args
+#   - KAFKA_BOOTSTRAP_SERVERS set or passed as args
+#   - For MSK: IAM auth properties file
 # ============================================================================
 
 set -euo pipefail

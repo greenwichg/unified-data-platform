@@ -2,6 +2,13 @@
 # ============================================================================
 # Zomato Data Platform - Kafka Consumer Group Lag Monitoring Script
 #
+# MIGRATION NOTE: In production, this script now runs against Amazon MSK.
+# MSK bootstrap servers should be set via KAFKA_BOOTSTRAP_SERVERS env var.
+# When using MSK with IAM auth, ensure the kafka-consumer-groups.sh command
+# uses --command-config with MSK IAM SASL properties.
+# You can also use Amazon CloudWatch metrics for MSK consumer group lag
+# monitoring as an alternative to this script.
+#
 # Monitors consumer group lag across all Zomato data platform consumer groups.
 # Publishes lag metrics to CloudWatch and optionally triggers SNS alerts
 # when lag exceeds configured thresholds.
