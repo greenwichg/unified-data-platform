@@ -26,20 +26,26 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 ## Project Structure
 
 ```
-├── terraform/           # Infrastructure as Code (AWS resources)
-│   ├── modules/         # Reusable Terraform modules
-│   └── environments/    # Environment-specific configs (dev/staging/prod)
-├── docker/              # Docker configs for local development
-├── pipelines/           # Pipeline application code
-│   ├── pipeline1_batch_etl/        # Sqoop batch ETL
-│   ├── pipeline2_cdc/              # Debezium CDC → Kafka → Flink
-│   ├── pipeline3_dynamodb_streams/ # DynamoDB → Spark
-│   └── pipeline4_realtime_events/  # App events → Kafka → Flink → Druid
-├── airflow/             # Airflow DAGs for orchestration
-├── schemas/             # Avro schemas for Kafka topics
-├── scripts/             # Utility and deployment scripts
-├── config/              # Application configuration
-└── docs/                # Architecture documentation
+├── platform/                        # Application code
+│   ├── pipelines/                   # Pipeline application code
+│   │   ├── pipeline1_batch_etl/     # Sqoop batch ETL
+│   │   ├── pipeline2_cdc/          # Debezium CDC → Kafka → Flink
+│   │   ├── pipeline3_dynamodb_streams/ # DynamoDB → Spark
+│   │   └── pipeline4_realtime_events/  # App events → Kafka → Flink → Druid
+│   └── airflow/                     # Airflow DAGs and plugins
+├── services/                        # External service configs
+│   ├── druid/                       # Druid ingestion specs
+│   └── msk/                         # MSK topics, connectors, schemas
+├── infra/                           # Infrastructure
+│   ├── terraform/                   # IaC (modules + environments)
+│   ├── docker/                      # Docker configs for local dev
+│   ├── ci/                          # CI/CD workflows (GitHub Actions, Jenkins)
+│   └── scripts/                     # Deployment and ops scripts
+├── observability/                   # Monitoring and alerting
+│   └── monitoring/                  # Prometheus, Grafana, Alertmanager
+├── config/                          # Application configuration
+├── tests/                           # Unit, integration, and e2e tests
+└── docs/                            # Architecture documentation
 ```
 
 ## Tech Stack
@@ -66,17 +72,17 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 docker-compose up -d
 
 # Run Pipeline 1 (Batch ETL)
-cd pipelines/pipeline1_batch_etl && python src/batch_etl.py
+cd platform/pipelines/pipeline1_batch_etl && python src/batch_etl.py
 
 # Run Pipeline 4 (Real-time Events)
-cd pipelines/pipeline4_realtime_events && python src/event_producer.py
+cd platform/pipelines/pipeline4_realtime_events && python src/event_producer.py
 ```
 
 ## Deployment
 
 ```bash
 # Initialize Terraform
-cd terraform/environments/dev
+cd infra/terraform/environments/dev
 terraform init
 terraform plan
 terraform apply
