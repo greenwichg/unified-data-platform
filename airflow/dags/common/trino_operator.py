@@ -1,136 +1,187 @@
 """
-Custom Airflow Operator for executing SQL against a Trino cluster.
+Custom Airflow Operator for executing SQL against Amazon Athena.
 
-Wraps the trino-python-client to provide:
-  - Parameterized Trino host/port/catalog/schema
+Migrated from self-hosted Trino to Amazon Athena (serverless).
+Wraps the AthenaOperator from apache-airflow-providers-amazon to provide:
+  - Parameterized database/workgroup/output location
   - Automatic retry with exponential backoff on transient failures
   - Query result logging and optional XCom push
   - Support for multi-statement SQL (semicolon-separated)
+
+The TrinoOperator name is preserved as a backward-compatible alias.
 """
 
 import time
 import logging
 from typing import Any, Optional, Sequence
 
-import trino
-from trino.exceptions import TrinoExternalError, TrinoInternalError
+import boto3
+from botocore.exceptions import ClientError
 
 from airflow.models import BaseOperator
 from airflow.utils.context import Context
 
 logger = logging.getLogger(__name__)
 
-# Trino error codes that are safe to retry
-RETRYABLE_ERROR_CODES = {
-    "QUERY_QUEUE_FULL",
-    "CLUSTER_OUT_OF_MEMORY",
-    "EXCEEDED_TIME_LIMIT",
-    "SERVER_STARTING_UP",
-    "GENERIC_INTERNAL_ERROR",
+# Athena error codes that are safe to retry
+RETRYABLE_ERROR_STATES = {
+    "INTERNAL_ERROR",
+    "SERVICE_ERROR",
+    "THROTTLING",
 }
 
 
-class TrinoOperator(BaseOperator):
+class AthenaQueryOperator(BaseOperator):
     """
-    Execute SQL statements against a specified Trino cluster.
+    Execute SQL statements against Amazon Athena.
 
     :param sql: SQL statement(s) to execute. Multiple statements separated by semicolons.
-    :param trino_host: Trino coordinator hostname.
-    :param trino_port: Trino coordinator port (default 8080).
-    :param catalog: Trino catalog to use (e.g., 'iceberg', 'mysql').
-    :param schema: Trino schema to use (e.g., 'zomato').
-    :param user: Trino user for the session (default 'airflow').
-    :param source: Source identifier for Trino query tracking.
+    :param database: Glue Data Catalog database to use (e.g., 'zomato').
+    :param workgroup: Athena workgroup (e.g., 'etl', 'adhoc', 'reporting').
+    :param output_location: S3 path for Athena query results.
+    :param aws_conn_id: Airflow AWS connection ID (default 'aws_default').
+    :param region_name: AWS region (default 'ap-south-1').
     :param query_timeout: Maximum query execution time in seconds (default 3600).
     :param max_retries: Number of retries on transient failures (default 3).
     :param retry_backoff_seconds: Initial backoff between retries in seconds (default 30).
     :param push_results: Whether to push query results to XCom (default False).
     """
 
-    template_fields: Sequence[str] = ("sql", "trino_host", "catalog", "schema")
+    template_fields: Sequence[str] = ("sql", "database", "output_location", "workgroup")
     template_ext: Sequence[str] = (".sql",)
     ui_color = "#e8d0ef"
 
     def __init__(
         self,
         sql: str,
-        trino_host: str,
-        trino_port: int = 8080,
-        catalog: str = "iceberg",
-        schema: str = "zomato",
-        user: str = "airflow",
-        source: str = "airflow-trino-operator",
+        database: str = "zomato",
+        workgroup: str = "etl",
+        output_location: str = "",
+        aws_conn_id: str = "aws_default",
+        region_name: str = "ap-south-1",
         query_timeout: int = 3600,
         max_retries: int = 3,
         retry_backoff_seconds: int = 30,
         push_results: bool = False,
+        # Legacy parameters accepted but ignored for backward compatibility
+        trino_host: str = "",
+        trino_port: int = 0,
+        catalog: str = "",
+        schema: str = "",
+        user: str = "",
+        source: str = "",
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.sql = sql
-        self.trino_host = trino_host
-        self.trino_port = trino_port
-        self.catalog = catalog
-        self.schema = schema
-        self.user = user
-        self.source = source
+        self.database = database or schema or "zomato"
+        self.workgroup = workgroup
+        self.output_location = output_location
+        self.aws_conn_id = aws_conn_id
+        self.region_name = region_name
         self.query_timeout = query_timeout
         self.max_retries = max_retries
         self.retry_backoff_seconds = retry_backoff_seconds
         self.push_results = push_results
 
-    def _get_connection(self) -> trino.dbapi.Connection:
-        """Create a new Trino connection."""
-        return trino.dbapi.connect(
-            host=self.trino_host,
-            port=self.trino_port,
-            user=self.user,
-            catalog=self.catalog,
-            schema=self.schema,
-            source=self.source,
-            http_scheme="https" if self.trino_port == 443 else "http",
-            request_timeout=self.query_timeout,
-        )
+    def _get_athena_client(self):
+        """Create a new Athena client."""
+        return boto3.client("athena", region_name=self.region_name)
 
     def _execute_with_retry(self, sql_statement: str) -> Optional[list]:
         """Execute a single SQL statement with retry logic."""
         last_exception = None
+        client = self._get_athena_client()
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                conn = self._get_connection()
-                cursor = conn.cursor()
-
                 logger.info(
-                    "Executing on %s:%s (attempt %d/%d):\n%s",
-                    self.trino_host,
-                    self.trino_port,
+                    "Executing on Athena workgroup '%s' (attempt %d/%d):\n%s",
+                    self.workgroup,
                     attempt,
                     self.max_retries,
                     sql_statement.strip()[:500],
                 )
 
-                cursor.execute(sql_statement)
-                results = cursor.fetchall()
+                exec_params = {
+                    "QueryString": sql_statement,
+                    "WorkGroup": self.workgroup,
+                    "QueryExecutionContext": {"Database": self.database},
+                }
+                if self.output_location:
+                    exec_params["ResultConfiguration"] = {
+                        "OutputLocation": self.output_location,
+                    }
 
-                row_count = len(results) if results else 0
+                response = client.start_query_execution(**exec_params)
+                execution_id = response["QueryExecutionId"]
+
+                # Poll for completion
+                elapsed = 0
+                poll_interval = 5
+                while elapsed < self.query_timeout:
+                    status_resp = client.get_query_execution(
+                        QueryExecutionId=execution_id
+                    )
+                    state = status_resp["QueryExecution"]["Status"]["State"]
+
+                    if state == "SUCCEEDED":
+                        break
+                    elif state in ("FAILED", "CANCELLED"):
+                        reason = status_resp["QueryExecution"]["Status"].get(
+                            "StateChangeReason", "unknown"
+                        )
+                        raise RuntimeError(
+                            f"Athena query {state}: {reason} "
+                            f"(execution_id={execution_id})"
+                        )
+
+                    time.sleep(poll_interval)
+                    elapsed += poll_interval
+                else:
+                    # Timeout: cancel the query
+                    client.stop_query_execution(QueryExecutionId=execution_id)
+                    raise TimeoutError(
+                        f"Athena query timed out after {self.query_timeout}s "
+                        f"(execution_id={execution_id})"
+                    )
+
+                # Fetch results if needed
+                results = []
+                if self.push_results:
+                    result_resp = client.get_query_results(
+                        QueryExecutionId=execution_id
+                    )
+                    rows = result_resp["ResultSet"]["Rows"]
+                    # Skip the header row
+                    for row in rows[1:]:
+                        results.append(
+                            [col.get("VarCharValue") for col in row["Data"]]
+                        )
+
+                row_count = len(results)
                 logger.info(
-                    "Query completed successfully. Rows returned: %d", row_count
+                    "Query completed successfully (execution_id=%s). Rows returned: %d",
+                    execution_id,
+                    row_count,
                 )
-
-                cursor.close()
-                conn.close()
                 return results
 
-            except (TrinoExternalError, TrinoInternalError) as e:
+            except (ClientError, RuntimeError) as e:
                 last_exception = e
-                error_name = getattr(e, "error_name", "UNKNOWN")
-                if error_name in RETRYABLE_ERROR_CODES and attempt < self.max_retries:
+                error_code = ""
+                if isinstance(e, ClientError):
+                    error_code = e.response.get("Error", {}).get("Code", "")
+
+                if (
+                    error_code in RETRYABLE_ERROR_STATES
+                    and attempt < self.max_retries
+                ):
                     backoff = self.retry_backoff_seconds * (2 ** (attempt - 1))
                     logger.warning(
-                        "Retryable Trino error '%s' on attempt %d/%d. "
+                        "Retryable Athena error '%s' on attempt %d/%d. "
                         "Retrying in %ds: %s",
-                        error_name,
+                        error_code,
                         attempt,
                         self.max_retries,
                         backoff,
@@ -140,13 +191,13 @@ class TrinoOperator(BaseOperator):
                 else:
                     raise
             except Exception as e:
-                logger.error("Non-retryable error executing Trino query: %s", str(e))
+                logger.error("Non-retryable error executing Athena query: %s", str(e))
                 raise
 
         raise last_exception
 
     def execute(self, context: Context) -> Optional[list]:
-        """Execute SQL against Trino, handling multi-statement SQL."""
+        """Execute SQL against Athena, handling multi-statement SQL."""
         statements = [
             stmt.strip()
             for stmt in self.sql.split(";")
@@ -154,12 +205,10 @@ class TrinoOperator(BaseOperator):
         ]
 
         logger.info(
-            "Executing %d SQL statement(s) against %s:%s/%s.%s",
+            "Executing %d SQL statement(s) against Athena workgroup '%s', database '%s'",
             len(statements),
-            self.trino_host,
-            self.trino_port,
-            self.catalog,
-            self.schema,
+            self.workgroup,
+            self.database,
         )
 
         all_results = []
@@ -173,3 +222,7 @@ class TrinoOperator(BaseOperator):
             context["ti"].xcom_push(key="query_results", value=all_results[:1000])
 
         return all_results if self.push_results else None
+
+
+# Backward-compatible alias
+TrinoOperator = AthenaQueryOperator

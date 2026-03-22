@@ -277,7 +277,7 @@ class TestDruidIngestionSpec:
 
     def test_datasource_name(self):
         from flink_realtime_processor import generate_druid_ingestion_spec
-        spec = generate_druid_ingestion_spec("kafka:9092", datasource="test_ds")
+        spec = generate_druid_ingestion_spec("b-1.msk-cluster.kafka.us-east-1.amazonaws.com:9098", datasource="test_ds")
         assert spec["spec"]["dataSchema"]["dataSource"] == "test_ds"
 
     def test_default_datasource(self):

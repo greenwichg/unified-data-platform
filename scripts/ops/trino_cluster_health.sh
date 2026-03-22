@@ -1,21 +1,23 @@
 #!/bin/bash
 ###############################################################################
-# Trino Cluster Health Check Script
+# Athena Workgroup Health Check Script
 #
-# Checks health of all Zomato Trino clusters (adhoc, etl, reporting):
-#   - Coordinator responsiveness
-#   - Worker node count and status
-#   - Running/queued query counts
-#   - Memory utilization
-#   - Catalog connectivity (Iceberg, Hive, MySQL)
+# MIGRATION NOTE: This script replaces the former Trino cluster health check.
+# Trino on ECS has been replaced by Amazon Athena (serverless).
+# Health checks now use AWS CLI to query Athena workgroup status and
+# CloudWatch metrics.
+#
+# Checks health of all Zomato Athena workgroups (adhoc, etl, reporting):
+#   - Workgroup status and configuration
+#   - Running/queued query counts (via CloudWatch)
+#   - Query failure rates
+#   - Data scanned metrics
 #
 # Usage:
-#   ./trino_cluster_health.sh [--cluster <adhoc|etl|reporting|all>]
+#   ./trino_cluster_health.sh [--workgroup <adhoc|etl|reporting|all>]
 #
 # Environment:
-#   TRINO_ADHOC_HOST      - Trino adhoc cluster host
-#   TRINO_ETL_HOST        - Trino ETL cluster host
-#   TRINO_REPORTING_HOST  - Trino reporting cluster host
+#   AWS_REGION            - AWS region (default: us-east-1)
 #   SNS_TOPIC_ARN         - SNS topic for alerts (optional)
 ###############################################################################
 
@@ -24,29 +26,15 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-TRINO_ADHOC_HOST="${TRINO_ADHOC_HOST:-localhost}"
-TRINO_ETL_HOST="${TRINO_ETL_HOST:-localhost}"
-TRINO_REPORTING_HOST="${TRINO_REPORTING_HOST:-localhost}"
-TRINO_PORT="${TRINO_PORT:-8080}"
-TRINO_USER="${TRINO_USER:-healthcheck}"
-SNS_TOPIC_ARN="${SNS_TOPIC_ARN:-}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
-CLOUDWATCH_NAMESPACE="zomato-data-platform"
+SNS_TOPIC_ARN="${SNS_TOPIC_ARN:-}"
+CLOUDWATCH_NAMESPACE="AWS/Athena"
+CUSTOM_NAMESPACE="zomato-data-platform"
 
-TARGET_CLUSTER="${1:-all}"
+TARGET_WORKGROUP="${1:-all}"
 EXIT_CODE=0
 
-declare -A CLUSTER_HOSTS=(
-    ["adhoc"]="$TRINO_ADHOC_HOST"
-    ["etl"]="$TRINO_ETL_HOST"
-    ["reporting"]="$TRINO_REPORTING_HOST"
-)
-
-declare -A EXPECTED_WORKERS=(
-    ["adhoc"]=10
-    ["etl"]=20
-    ["reporting"]=8
-)
+WORKGROUPS=("zomato-adhoc" "zomato-etl" "zomato-reporting")
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -61,7 +49,7 @@ warn() {
 
 send_alert() {
     local message="$1"
-    local subject="${2:-Trino Health Alert}"
+    local subject="${2:-Athena Health Alert}"
 
     if [[ -n "$SNS_TOPIC_ARN" ]]; then
         aws sns publish \
@@ -73,16 +61,16 @@ send_alert() {
 }
 
 publish_metric() {
-    local cluster="$1"
+    local workgroup="$1"
     local metric_name="$2"
     local value="$3"
     local unit="${4:-Count}"
 
     aws cloudwatch put-metric-data \
         --region "$AWS_REGION" \
-        --namespace "$CLOUDWATCH_NAMESPACE" \
-        --metric-name "Trino${metric_name}" \
-        --dimensions TrinoCluster="$cluster" \
+        --namespace "$CUSTOM_NAMESPACE" \
+        --metric-name "Athena${metric_name}" \
+        --dimensions AthenaWorkgroup="$workgroup" \
         --value "$value" \
         --unit "$unit" 2>/dev/null || true
 }
@@ -90,150 +78,140 @@ publish_metric() {
 # ---------------------------------------------------------------------------
 # Health check functions
 # ---------------------------------------------------------------------------
-check_coordinator() {
-    local cluster="$1"
-    local host="${CLUSTER_HOSTS[$cluster]}"
-    local url="http://${host}:${TRINO_PORT}/v1/info"
+check_workgroup_status() {
+    local workgroup="$1"
 
-    log "Checking coordinator: $cluster ($host:$TRINO_PORT)"
+    log "Checking workgroup status: $workgroup"
 
-    local response
-    response=$(curl -s -w "\n%{http_code}" --max-time 10 "$url" 2>/dev/null || echo -e "\n000")
-    local http_code
-    http_code=$(echo "$response" | tail -1)
-    local body
-    body=$(echo "$response" | head -n -1)
+    local status
+    status=$(aws athena get-work-group \
+        --region "$AWS_REGION" \
+        --work-group "$workgroup" \
+        --query 'WorkGroup.State' \
+        --output text 2>/dev/null || echo "UNKNOWN")
 
-    if [[ "$http_code" != "200" ]]; then
-        warn "$cluster coordinator unreachable (HTTP $http_code)"
-        publish_metric "$cluster" "CoordinatorHealthy" 0
+    if [[ "$status" != "ENABLED" ]]; then
+        warn "$workgroup workgroup is not ENABLED (status: $status)"
+        publish_metric "$workgroup" "WorkgroupHealthy" 0
         return 1
     fi
 
-    local starting
-    starting=$(echo "$body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('starting', True))" 2>/dev/null || echo "true")
-
-    if [[ "$starting" == "True" ]]; then
-        warn "$cluster coordinator is still starting"
-        publish_metric "$cluster" "CoordinatorHealthy" 0
-        return 1
-    fi
-
-    log "  Coordinator: HEALTHY"
-    publish_metric "$cluster" "CoordinatorHealthy" 1
+    log "  Workgroup Status: ENABLED"
+    publish_metric "$workgroup" "WorkgroupHealthy" 1
     return 0
 }
 
-check_workers() {
-    local cluster="$1"
-    local host="${CLUSTER_HOSTS[$cluster]}"
-    local expected="${EXPECTED_WORKERS[$cluster]}"
-    local url="http://${host}:${TRINO_PORT}/v1/node"
+check_running_queries() {
+    local workgroup="$1"
 
-    local response
-    response=$(curl -s --max-time 10 "$url" 2>/dev/null || echo "[]")
+    # List running queries via Athena API
+    local running_count
+    running_count=$(aws athena list-query-executions \
+        --region "$AWS_REGION" \
+        --work-group "$workgroup" \
+        --max-results 50 \
+        --query 'QueryExecutionIds' \
+        --output text 2>/dev/null | wc -w || echo "0")
 
-    local total_workers
-    total_workers=$(echo "$response" | python3 -c "
-import json, sys
-nodes = json.load(sys.stdin)
-print(len([n for n in nodes if n.get('coordinator', False) is False]))
-" 2>/dev/null || echo "0")
+    log "  Recent query executions (last 50 window): $running_count"
+    publish_metric "$workgroup" "RecentQueries" "$running_count"
 
-    local active_workers
-    active_workers=$(echo "$response" | python3 -c "
-import json, sys
-from datetime import datetime, timedelta
-nodes = json.load(sys.stdin)
-active = [n for n in nodes if not n.get('coordinator', False)]
-print(len(active))
-" 2>/dev/null || echo "0")
-
-    log "  Workers: $active_workers active / $expected expected"
-    publish_metric "$cluster" "ActiveWorkers" "$active_workers"
-
-    if [[ "$active_workers" -lt "$expected" ]]; then
-        local deficit=$((expected - active_workers))
-        warn "$cluster: $deficit worker(s) missing (have $active_workers, need $expected)"
-
-        if [[ "$active_workers" -lt $((expected / 2)) ]]; then
-            send_alert "CRITICAL: Trino $cluster cluster has only $active_workers/$expected workers" \
-                       "CRITICAL: Trino Worker Shortage"
-            return 1
-        fi
-    fi
     return 0
 }
 
-check_queries() {
-    local cluster="$1"
-    local host="${CLUSTER_HOSTS[$cluster]}"
-    local url="http://${host}:${TRINO_PORT}/v1/query"
+check_cloudwatch_metrics() {
+    local workgroup="$1"
+    local end_time
+    end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local start_time
+    start_time=$(date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-15M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "$end_time")
 
-    local response
-    response=$(curl -s --max-time 10 "$url" 2>/dev/null || echo "[]")
+    # Check total query count from CloudWatch
+    local query_count
+    query_count=$(aws cloudwatch get-metric-statistics \
+        --region "$AWS_REGION" \
+        --namespace "$CLOUDWATCH_NAMESPACE" \
+        --metric-name "TotalExecutionTime" \
+        --dimensions Name=WorkGroup,Value="$workgroup" \
+        --start-time "$start_time" \
+        --end-time "$end_time" \
+        --period 900 \
+        --statistics SampleCount \
+        --query 'Datapoints[0].SampleCount' \
+        --output text 2>/dev/null || echo "0")
 
-    local stats
-    stats=$(echo "$response" | python3 -c "
-import json, sys
-queries = json.load(sys.stdin)
-running = len([q for q in queries if q.get('state') == 'RUNNING'])
-queued = len([q for q in queries if q.get('state') == 'QUEUED'])
-failed = len([q for q in queries if q.get('state') == 'FAILED'])
-print(f'{running} {queued} {failed}')
-" 2>/dev/null || echo "0 0 0")
+    log "  Queries (last 15m): ${query_count:-0}"
 
-    read -r running queued failed <<< "$stats"
+    # Check data scanned
+    local data_scanned
+    data_scanned=$(aws cloudwatch get-metric-statistics \
+        --region "$AWS_REGION" \
+        --namespace "$CLOUDWATCH_NAMESPACE" \
+        --metric-name "ProcessedBytes" \
+        --dimensions Name=WorkGroup,Value="$workgroup" \
+        --start-time "$start_time" \
+        --end-time "$end_time" \
+        --period 900 \
+        --statistics Sum \
+        --query 'Datapoints[0].Sum' \
+        --output text 2>/dev/null || echo "0")
 
-    log "  Queries: $running running, $queued queued, $failed failed"
-    publish_metric "$cluster" "RunningQueries" "$running"
-    publish_metric "$cluster" "QueuedQueries" "$queued"
+    local data_scanned_gb
+    data_scanned_gb=$(python3 -c "print(f'{${data_scanned:-0} / (1024**3):.2f}')" 2>/dev/null || echo "0")
+    log "  Data scanned (last 15m): ${data_scanned_gb} GB"
 
-    if [[ "$queued" -gt 50 ]]; then
-        warn "$cluster: High query queue ($queued queries)"
-        send_alert "WARNING: Trino $cluster has $queued queued queries" \
-                   "WARNING: Trino Query Queue"
-    fi
+    publish_metric "$workgroup" "DataScannedGB" "$data_scanned_gb" "Gigabytes"
+
     return 0
 }
 
-check_catalogs() {
-    local cluster="$1"
-    local host="${CLUSTER_HOSTS[$cluster]}"
+check_failed_queries() {
+    local workgroup="$1"
 
-    local catalogs=("iceberg" "hive" "mysql")
-    local failed_catalogs=()
+    # Sample recent query executions and check for failures
+    local query_ids
+    query_ids=$(aws athena list-query-executions \
+        --region "$AWS_REGION" \
+        --work-group "$workgroup" \
+        --max-results 20 \
+        --query 'QueryExecutionIds' \
+        --output text 2>/dev/null || echo "")
 
-    for catalog in "${catalogs[@]}"; do
-        local query="SELECT 1"
-        local result
-        result=$(curl -s --max-time 15 \
-            -X POST "http://${host}:${TRINO_PORT}/v1/statement" \
-            -H "X-Trino-User: $TRINO_USER" \
-            -H "X-Trino-Catalog: $catalog" \
-            -H "X-Trino-Schema: information_schema" \
-            -d "$query" 2>/dev/null || echo '{"error": true}')
+    if [[ -z "$query_ids" ]]; then
+        log "  No recent queries to check for failures"
+        return 0
+    fi
 
-        local has_error
-        has_error=$(echo "$result" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-print('true' if 'error' in data and isinstance(data['error'], dict) else 'false')
-" 2>/dev/null || echo "true")
+    local failed_count=0
+    local total_count=0
 
-        if [[ "$has_error" == "true" ]]; then
-            failed_catalogs+=("$catalog")
+    for qid in $query_ids; do
+        total_count=$((total_count + 1))
+        local state
+        state=$(aws athena get-query-execution \
+            --region "$AWS_REGION" \
+            --query-execution-id "$qid" \
+            --query 'QueryExecution.Status.State' \
+            --output text 2>/dev/null || echo "UNKNOWN")
+
+        if [[ "$state" == "FAILED" ]]; then
+            failed_count=$((failed_count + 1))
         fi
     done
 
-    if [[ ${#failed_catalogs[@]} -gt 0 ]]; then
-        warn "$cluster: Catalog(s) unreachable: ${failed_catalogs[*]}"
-        publish_metric "$cluster" "CatalogFailures" "${#failed_catalogs[@]}"
-        return 1
+    log "  Recent query status: $failed_count failed out of $total_count sampled"
+    publish_metric "$workgroup" "FailedQueries" "$failed_count"
+
+    if [[ "$total_count" -gt 0 ]]; then
+        local failure_pct=$((failed_count * 100 / total_count))
+        if [[ "$failure_pct" -gt 30 ]]; then
+            warn "$workgroup: High query failure rate ($failure_pct%)"
+            send_alert "CRITICAL: Athena workgroup $workgroup has $failure_pct% query failure rate ($failed_count/$total_count)" \
+                       "CRITICAL: Athena Query Failures"
+            return 1
+        fi
     fi
 
-    log "  Catalogs: all reachable (${catalogs[*]})"
-    publish_metric "$cluster" "CatalogFailures" 0
     return 0
 }
 
@@ -241,27 +219,34 @@ print('true' if 'error' in data and isinstance(data['error'], dict) else 'false'
 # Main
 # ---------------------------------------------------------------------------
 log "=========================================="
-log "Trino Cluster Health Check"
+log "Athena Workgroup Health Check"
+log "(Replaces former Trino Cluster Health Check)"
 log "=========================================="
 
-if [[ "$TARGET_CLUSTER" == "all" ]]; then
-    clusters=("adhoc" "etl" "reporting")
+if [[ "$TARGET_WORKGROUP" == "all" ]]; then
+    workgroups=("${WORKGROUPS[@]}")
+elif [[ "$TARGET_WORKGROUP" == "--workgroup" ]]; then
+    # Handle --workgroup flag
+    workgroups=("zomato-${2:-all}")
+    if [[ "${2:-all}" == "all" ]]; then
+        workgroups=("${WORKGROUPS[@]}")
+    fi
 else
-    clusters=("$TARGET_CLUSTER")
+    workgroups=("zomato-$TARGET_WORKGROUP")
 fi
 
-for cluster in "${clusters[@]}"; do
+for workgroup in "${workgroups[@]}"; do
     log ""
-    log "--- Cluster: $cluster ---"
+    log "--- Workgroup: $workgroup ---"
 
-    if ! check_coordinator "$cluster"; then
+    if ! check_workgroup_status "$workgroup"; then
         EXIT_CODE=1
         continue
     fi
 
-    check_workers "$cluster" || EXIT_CODE=1
-    check_queries "$cluster" || EXIT_CODE=1
-    check_catalogs "$cluster" || EXIT_CODE=1
+    check_running_queries "$workgroup" || EXIT_CODE=1
+    check_cloudwatch_metrics "$workgroup" || EXIT_CODE=1
+    check_failed_queries "$workgroup" || EXIT_CODE=1
 done
 
 log ""

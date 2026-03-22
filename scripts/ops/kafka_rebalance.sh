@@ -2,6 +2,15 @@
 ###############################################################################
 # Kafka Cluster Rebalance Script
 #
+# MIGRATION NOTE: In production, Amazon MSK handles partition rebalancing
+# automatically via managed broker scaling and cruise-control integration.
+# For MSK clusters, use the AWS Console or AWS CLI to monitor partition
+# distribution. Manual rebalancing is generally not needed with MSK.
+#
+# This script is retained for:
+#   - Local development (docker-compose Kafka)
+#   - Emergency manual rebalancing if MSK auto-rebalance is insufficient
+#
 # Generates and executes a partition reassignment plan to balance topic
 # partitions across brokers. Supports:
 #   - Full cluster rebalance
@@ -13,9 +22,9 @@
 #   ./kafka_rebalance.sh [--dry-run] [--topic <name>] [--throttle <bytes/s>]
 #
 # Environment:
-#   KAFKA_BOOTSTRAP    - Kafka bootstrap servers (required)
+#   KAFKA_BOOTSTRAP    - Kafka bootstrap servers (required; for MSK use MSK bootstrap)
 #   KAFKA_HOME         - Kafka installation directory
-#   ZOOKEEPER_CONNECT  - ZooKeeper connection string
+#   ZOOKEEPER_CONNECT  - ZooKeeper connection string (not used with MSK)
 ###############################################################################
 
 set -euo pipefail
