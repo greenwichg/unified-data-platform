@@ -32,7 +32,8 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 │   │   ├── pipeline2_cdc/          # Debezium CDC → Kafka → Flink
 │   │   ├── pipeline3_dynamodb_streams/ # DynamoDB → Spark
 │   │   └── pipeline4_realtime_events/  # App events → Kafka → Flink → Druid
-│   └── airflow/                     # Airflow DAGs and plugins
+│   ├── airflow/                     # Airflow DAGs and plugins
+│   └── config/                      # Application configuration
 ├── services/                        # External service configs
 │   ├── druid/                       # Druid ingestion specs
 │   └── msk/                         # MSK topics, connectors, schemas
@@ -42,8 +43,9 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 │   ├── ci/                          # CI/CD workflows (GitHub Actions, Jenkins)
 │   └── scripts/                     # Deployment and ops scripts
 ├── observability/                   # Monitoring and alerting
-│   └── monitoring/                  # Prometheus, Grafana, Alertmanager
-├── config/                          # Application configuration
+│   ├── prometheus/                  # Metrics collection and alert rules
+│   ├── grafana/                     # Dashboards and provisioning
+│   └── alertmanager/                # Alert routing
 ├── tests/                           # Unit, integration, and e2e tests
 └── docs/                            # Architecture documentation
 ```
