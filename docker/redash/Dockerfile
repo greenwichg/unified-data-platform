@@ -1,16 +1,23 @@
 # =============================================================================
 # Zomato Data Platform - Redash (Local Development)
-# Redash for ad-hoc SQL queries against Trino and Druid
+# Redash for ad-hoc SQL queries against Athena/Trino and Druid
+#
+# PRODUCTION NOTE: In production, Amazon Athena (serverless) replaces Trino.
+# Redash connects to Athena via the PyAthena driver. Trino drivers are kept
+# for local dev only.
 # =============================================================================
 FROM redash/redash:10.1.0.b50633
 
 LABEL maintainer="data-engineering@zomato.com"
-LABEL description="Redash with Trino and Druid query runners"
+LABEL description="Redash with Athena, Trino (local dev), and Druid query runners"
 
 USER root
 
-# Install Trino and Druid query runner dependencies
+# Install Athena, Trino, and Druid query runner dependencies
+# NOTE: In production, use PyAthena for Athena connectivity.
+# Trino drivers are retained for local development only.
 RUN pip install --no-cache-dir \
+    pyathena>=3.0.0 \
     trino[sqlalchemy]==0.327.0 \
     pydruid==0.6.6 \
     pyhive[trino]==0.7.0
@@ -25,7 +32,7 @@ ENV REDASH_LOG_LEVEL=INFO \
     REDASH_MAIL_SERVER="localhost" \
     REDASH_MAIL_PORT=25 \
     REDASH_MAIL_DEFAULT_SENDER="redash@zomato.com" \
-    REDASH_ADDITIONAL_QUERY_RUNNERS="redash.query_runner.trino,redash.query_runner.druid" \
+    REDASH_ADDITIONAL_QUERY_RUNNERS="redash.query_runner.athena,redash.query_runner.trino,redash.query_runner.druid" \
     PYTHONUNBUFFERED=0
 
 USER redash

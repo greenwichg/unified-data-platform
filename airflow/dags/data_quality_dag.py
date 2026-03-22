@@ -21,7 +21,7 @@ default_args = {
     "retry_delay": timedelta(minutes=5),
 }
 
-TRINO_HOST = "{{ var.value.trino_etl_host }}"
+ATHENA_OUTPUT_S3 = "{{ var.value.athena_query_results_s3 }}"
 
 
 def check_data_freshness(**context):

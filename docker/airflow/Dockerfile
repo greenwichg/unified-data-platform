@@ -2,11 +2,16 @@
 # Zomato Data Platform - Apache Airflow with Providers
 # Airflow 2.8 with all required provider packages for orchestrating
 # the data platform pipelines
+#
+# PRODUCTION NOTE: In production, Athena replaces Trino for query execution,
+# Amazon MSK (with IAM auth) replaces self-hosted Kafka, and AWS Glue Data
+# Catalog replaces Hive Metastore. The apache-airflow-providers-amazon package
+# includes Athena and MSK operators.
 # =============================================================================
 FROM apache/airflow:2.8-python3.11
 
 LABEL maintainer="data-engineering@zomato.com"
-LABEL description="Apache Airflow with AWS, Trino, Slack, and Celery providers"
+LABEL description="Apache Airflow with AWS, Athena, Trino (local dev), Slack, and Celery providers"
 
 USER root
 

@@ -100,40 +100,37 @@ with DAG(
 
     for table_name, config in ICEBERG_TABLES.items():
         with TaskGroup(f"maintain_{table_name}") as table_group:
-            rewrite = TrinoOperator(
+            rewrite = AthenaQueryOperator(
                 task_id=f"rewrite_data_files_{table_name}",
-                trino_host=TRINO_ETL_HOST,
-                trino_port=TRINO_ETL_PORT,
                 sql=REWRITE_DATA_FILES_SQL.format(
                     table=table_name,
                     target_file_size_mb=config["target_file_size_mb"],
                 ),
-                catalog="iceberg",
-                schema="zomato",
+                database="zomato",
+                output_location=ATHENA_OUTPUT_S3,
+                workgroup=ATHENA_WORKGROUP,
             )
 
-            expire = TrinoOperator(
+            expire = AthenaQueryOperator(
                 task_id=f"expire_snapshots_{table_name}",
-                trino_host=TRINO_ETL_HOST,
-                trino_port=TRINO_ETL_PORT,
                 sql=EXPIRE_SNAPSHOTS_SQL.format(
                     table=table_name,
                     retention_days=config["snapshot_retention_days"],
                 ),
-                catalog="iceberg",
-                schema="zomato",
+                database="zomato",
+                output_location=ATHENA_OUTPUT_S3,
+                workgroup=ATHENA_WORKGROUP,
             )
 
-            orphan = TrinoOperator(
+            orphan = AthenaQueryOperator(
                 task_id=f"remove_orphan_files_{table_name}",
-                trino_host=TRINO_ETL_HOST,
-                trino_port=TRINO_ETL_PORT,
                 sql=REMOVE_ORPHAN_FILES_SQL.format(
                     table=table_name,
                     retention_days=config["orphan_retention_days"],
                 ),
-                catalog="iceberg",
-                schema="zomato",
+                database="zomato",
+                output_location=ATHENA_OUTPUT_S3,
+                workgroup=ATHENA_WORKGROUP,
             )
 
             rewrite >> expire >> orphan

@@ -1,16 +1,22 @@
 # =============================================================================
 # Zomato Data Platform - Apache Superset (Local Development)
-# Superset with Trino and Druid drivers for data lake visualization
+# Superset with Athena, Trino (local dev), and Druid drivers for data lake visualization
+#
+# PRODUCTION NOTE: In production, Amazon Athena (serverless) replaces Trino.
+# Superset connects to Athena via the PyAthena SQLAlchemy driver.
 # =============================================================================
 FROM apache/superset:3.1.0
 
 LABEL maintainer="data-engineering@zomato.com"
-LABEL description="Apache Superset with Trino and Druid SQLAlchemy drivers"
+LABEL description="Apache Superset with Athena, Trino (local dev), and Druid SQLAlchemy drivers"
 
 USER root
 
-# Install database drivers for Trino and Druid
+# Install database drivers for Athena (production), Trino (local dev), and Druid
+# NOTE: In production, use PyAthena for Athena connectivity.
+# Trino drivers are retained for local development only.
 RUN pip install --no-cache-dir \
+    pyathena[sqlalchemy]>=3.0.0 \
     trino[sqlalchemy]==0.327.0 \
     pydruid==0.6.6 \
     sqlalchemy-trino==0.6.1 \
@@ -43,8 +49,9 @@ CACHE_CONFIG = {
     "CACHE_DEFAULT_TIMEOUT": 300,
 }
 
-# Trino connection defaults
-PREFERRED_DATABASES = ["trino", "druid"]
+# Database connection defaults
+# Production uses Athena; Trino is for local dev only
+PREFERRED_DATABASES = ["athena", "trino", "druid"]
 
 # Row limit for queries
 ROW_LIMIT = 50000

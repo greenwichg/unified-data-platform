@@ -277,7 +277,7 @@ def athena_connection(athena_host):
 def set_test_env_vars(kafka_bootstrap, s3_endpoint_url, s3_buckets):
     """Inject test-specific environment variables for pipeline code."""
     env_overrides = {
-        "KAFKA_BOOTSTRAP": kafka_bootstrap,
+        "MSK_BOOTSTRAP": kafka_bootstrap,
         "S3_BUCKET": s3_buckets["raw"],
         "S3_ENDPOINT_URL": s3_endpoint_url,
         "AWS_ACCESS_KEY_ID": MINIO_ACCESS_KEY,
@@ -310,12 +310,12 @@ def _wait_for_topics(bootstrap: str, topics: list[str], timeout: int = 30) -> No
     raise TimeoutError(f"Topics {topics} did not appear within {timeout}s")
 
 
-def _wait_for_trino(container, timeout: int = 120) -> None:
-    """Wait until the Trino server responds to a health check."""
+def _wait_for_athena(container, timeout: int = 120) -> None:
+    """Wait until the Athena-compatible (Trino-based) engine responds to a health check."""
     import urllib.request
 
     host = container.get_container_host_ip()
-    port = container.get_exposed_port(TRINO_PORT)
+    port = container.get_exposed_port(ATHENA_TEST_PORT)
     url = f"http://{host}:{port}/v1/info"
     deadline = time.time() + timeout
 
@@ -329,4 +329,4 @@ def _wait_for_trino(container, timeout: int = 120) -> None:
         except Exception:
             pass
         time.sleep(2)
-    raise TimeoutError(f"Trino did not become ready within {timeout}s")
+    raise TimeoutError(f"Athena-compatible engine did not become ready within {timeout}s")

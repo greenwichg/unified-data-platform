@@ -1,3 +1,6 @@
+# DEPRECATED: This Trino catalog template is no longer used.
+# Catalogs are now managed by AWS Glue Data Catalog (see terraform/modules/trino/main.tf).
+# Retained for reference during migration. Do not modify.
 connector.name=iceberg
 iceberg.catalog.type=hive_metastore
 hive.metastore.uri=thrift://${hive_metastore_host}:${hive_metastore_port}

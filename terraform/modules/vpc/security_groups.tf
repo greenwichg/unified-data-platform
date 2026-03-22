@@ -141,44 +141,14 @@ resource "aws_security_group" "flink" {
 }
 
 # ---------- Trino Security Group ----------
-resource "aws_security_group" "trino" {
-  name_prefix = "${var.project_name}-${var.environment}-trino-"
-  vpc_id      = aws_vpc.main.id
-  description = "Security group for Trino clusters"
-
-  # Trino HTTP
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-    description = "Trino HTTP"
-  }
-
-  # Trino HTTPS
-  ingress {
-    from_port   = 8443
-    to_port     = 8443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-    description = "Trino HTTPS"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-trino-sg"
-  })
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+# DEPRECATED: Trino on ECS has been replaced by serverless Amazon Athena.
+# Athena is serverless and does not require VPC security group rules.
+# This resource is retained temporarily for teardown; remove after migration is complete.
+# resource "aws_security_group" "trino" {
+#   name_prefix = "${var.project_name}-${var.environment}-trino-"
+#   vpc_id      = aws_vpc.main.id
+#   description = "DEPRECATED - Trino replaced by Athena (serverless)"
+# }
 
 # ---------- Druid Security Group ----------
 resource "aws_security_group" "druid" {
@@ -248,35 +218,14 @@ resource "aws_security_group" "druid" {
 }
 
 # ---------- Hive Metastore Security Group ----------
-resource "aws_security_group" "hive_metastore" {
-  name_prefix = "${var.project_name}-${var.environment}-hive-metastore-"
-  vpc_id      = aws_vpc.main.id
-  description = "Security group for Hive Metastore Thrift server"
-
-  # Hive Metastore Thrift port
-  ingress {
-    from_port   = 9083
-    to_port     = 9083
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-    description = "Hive Metastore Thrift"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-hive-metastore-sg"
-  })
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+# DEPRECATED: Self-hosted Hive Metastore has been replaced by AWS Glue Data Catalog.
+# Glue is a managed service and does not require VPC security group rules.
+# This resource is retained temporarily for teardown; remove after migration is complete.
+# resource "aws_security_group" "hive_metastore" {
+#   name_prefix = "${var.project_name}-${var.environment}-hive-metastore-"
+#   vpc_id      = aws_vpc.main.id
+#   description = "DEPRECATED - Hive Metastore replaced by AWS Glue Data Catalog"
+# }
 
 # ---------- Cross-Service Rules ----------
 
@@ -335,35 +284,6 @@ resource "aws_security_group_rule" "druid_to_zookeeper" {
   description              = "Druid to ZooKeeper"
 }
 
-# Allow Trino to access Hive Metastore
-resource "aws_security_group_rule" "trino_to_hive_metastore" {
-  type                     = "ingress"
-  from_port                = 9083
-  to_port                  = 9083
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.trino.id
-  security_group_id        = aws_security_group.hive_metastore.id
-  description              = "Trino to Hive Metastore"
-}
-
-# Allow Flink to access Hive Metastore
-resource "aws_security_group_rule" "flink_to_hive_metastore" {
-  type                     = "ingress"
-  from_port                = 9083
-  to_port                  = 9083
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.flink.id
-  security_group_id        = aws_security_group.hive_metastore.id
-  description              = "Flink to Hive Metastore"
-}
-
-# Allow Druid to access Hive Metastore
-resource "aws_security_group_rule" "druid_to_hive_metastore" {
-  type                     = "ingress"
-  from_port                = 9083
-  to_port                  = 9083
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.druid.id
-  security_group_id        = aws_security_group.hive_metastore.id
-  description              = "Druid to Hive Metastore"
-}
+# DEPRECATED: Trino-to-Hive-Metastore and Flink/Druid-to-Hive-Metastore rules removed.
+# Trino replaced by serverless Athena; Hive Metastore replaced by AWS Glue Data Catalog.
+# Flink and Druid now access Glue via IAM (no network-level SG rules required).
