@@ -33,8 +33,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 TEST_S3_BUCKET_RAW = "zomato-data-platform-test-raw-data-lake"
 TEST_S3_BUCKET_PROCESSED = "zomato-data-platform-test-processed"
-TEST_KAFKA_BOOTSTRAP = "localhost:9092"
-TEST_SCHEMA_REGISTRY_URL = "http://localhost:8081"
+TEST_MSK_BOOTSTRAP = "localhost:9098"  # MSK (Amazon Managed Streaming for Kafka) test default
+TEST_GLUE_SCHEMA_REGISTRY_ENDPOINT = "https://glue.us-east-1.amazonaws.com"
 TEST_JDBC_URL = "jdbc:mysql://localhost:3306/zomato_test"
 
 ZOMATO_CITIES = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Pune"]

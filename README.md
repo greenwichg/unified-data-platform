@@ -1,6 +1,6 @@
 # Zomato Data Platform Architecture on AWS
 
-A production-grade data platform processing 2M+ orders/day, 450M Kafka messages/min,
+A production-grade data platform processing 2M+ orders/day, 450M MSK messages/min,
 20B events/week, and petabytes of data queried daily.
 
 ## Architecture Overview
@@ -11,13 +11,13 @@ A production-grade data platform processing 2M+ orders/day, 450M Kafka messages/
 
 | Pipeline | Source | Processing | Sink | Format |
 |----------|--------|-----------|------|--------|
-| Pipeline 1 - Batch ETL | Aurora MySQL | Sqoop → S3 | Kafka → Flink → S3 | ORC |
-| Pipeline 2 - CDC | Aurora MySQL | Debezium → Kafka | Flink → S3 (Iceberg) | Avro/ORC |
+| Pipeline 1 - Batch ETL | Aurora MySQL | Sqoop → S3 | MSK → Flink → S3 | ORC |
+| Pipeline 2 - CDC | Aurora MySQL | Debezium → MSK | Flink → S3 (Iceberg) | Avro/ORC |
 | Pipeline 3 - DynamoDB Streams | DynamoDB | Streams → S3 JSON | Spark (EMR) → S3 | ORC |
-| Pipeline 4 - Real-time Events | Microservices/Web/Mobile | Custom Producer → Kafka | Flink → S3 + Druid | ORC |
+| Pipeline 4 - Real-time Events | Microservices/Web/Mobile | Custom Producer → MSK | Flink → S3 + Druid | ORC |
 
 ### Query Layer
-- **Trino**: 250K+ queries/week, 2PB scanned, 3 cluster types (Adhoc, ETL, Reporting)
+- **Amazon Athena** (Trino-based, serverless): 250K+ queries/week, 2PB scanned, 3 Athena workgroups (Adhoc, ETL, Reporting)
 - **Druid**: 20B events/week, 8M queries/week, millisecond response times
 
 ### Dashboards
@@ -46,13 +46,15 @@ A production-grade data platform processing 2M+ orders/day, 450M Kafka messages/
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| Message Bus | Apache Kafka (self-hosted EC2) | 450M msgs/min event streaming |
+| Message Bus | Amazon MSK | 450M msgs/min event streaming |
 | Stream Processing | Apache Flink | Complex event processing |
 | Batch Processing | Apache Spark (EMR) | DynamoDB stream processing |
 | Batch ETL | Apache Sqoop | MySQL → S3 batch ingestion |
 | CDC | Debezium | MySQL change data capture |
 | Data Lake | S3 + Iceberg + ORC | Petabyte-scale storage |
-| Query Engine | Trino | Federated SQL queries |
+| Query Engine | Amazon Athena (Trino-based, serverless) | Federated SQL queries |
+| Metadata Catalog | AWS Glue Data Catalog | Centralized metadata management |
+| Schema Registry | AWS Glue Schema Registry | Schema management for streaming data |
 | Real-time OLAP | Apache Druid | Millisecond analytics |
 | Orchestration | Apache Airflow | Pipeline scheduling |
 | Dashboards | Superset, Redash, Jupyter | Visualization |

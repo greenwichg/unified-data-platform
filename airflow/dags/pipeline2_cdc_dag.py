@@ -33,7 +33,7 @@ default_args = {
 }
 
 DEBEZIUM_CONNECT_URL = "{{ var.value.debezium_connect_url }}"
-KAFKA_BOOTSTRAP = "{{ var.value.kafka_bootstrap_servers }}"
+MSK_BOOTSTRAP = "{{ var.value.msk_bootstrap_servers }}"
 MANAGED_FLINK_APP_NAME = "{{ var.value.managed_flink_cdc_app_name }}"
 AWS_REGION = "{{ var.value.aws_region }}"
 
@@ -164,8 +164,8 @@ def restart_failed_connectors(**context):
 
 
 def check_kafka_consumer_lag(**context):
-    """Check Kafka consumer group lag for CDC topics."""
-    kafka_bootstrap = Variable.get("kafka_bootstrap_servers")
+    """Check MSK consumer group lag for CDC topics."""
+    msk_bootstrap = Variable.get("msk_bootstrap_servers")
     lag_results = {}
     high_lag_topics = []
 
@@ -183,7 +183,7 @@ def check_kafka_consumer_lag(**context):
             f"High consumer lag detected on topics: {high_lag_topics}"
         )
 
-    print(f"Kafka consumer lag within thresholds for all {len(CDC_TABLES)} topics")
+    print(f"MSK consumer lag within thresholds for all {len(CDC_TABLES)} topics")
 
 
 def check_flink_cdc_jobs(**context):
@@ -239,12 +239,14 @@ def check_flink_cdc_jobs(**context):
 
 
 def validate_data_freshness(**context):
-    """Validate that CDC Iceberg tables are receiving fresh data."""
-    from trino.dbapi import connect
+    """Validate that CDC Iceberg tables are receiving fresh data via Athena."""
+    import time as _time
 
-    trino_host = Variable.get("trino_etl_host")
-    conn = connect(host=trino_host, port=8080, user="airflow", catalog="iceberg")
-    cursor = conn.cursor()
+    region = Variable.get("aws_region", default_var="ap-south-1")
+    athena_client = boto3.client("athena", region_name=region)
+    output_location = Variable.get(
+        "athena_query_results_s3", default_var="s3://zomato-athena-results/cdc-freshness/"
+    )
 
     stale_tables = []
 
@@ -255,11 +257,33 @@ def validate_data_freshness(**context):
             WHERE processed_at >= CURRENT_TIMESTAMP - INTERVAL '1' HOUR
         """
         try:
-            cursor.execute(query)
-            result = cursor.fetchone()
-            latest = result[0] if result else None
+            execution = athena_client.start_query_execution(
+                QueryString=query,
+                WorkGroup="etl",
+                ResultConfiguration={"OutputLocation": output_location},
+            )
+            execution_id = execution["QueryExecutionId"]
 
-            if latest is None:
+            # Poll for query completion
+            while True:
+                resp = athena_client.get_query_execution(QueryExecutionId=execution_id)
+                state = resp["QueryExecution"]["Status"]["State"]
+                if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
+                    break
+                _time.sleep(2)
+
+            if state != "SUCCEEDED":
+                reason = resp["QueryExecution"]["Status"].get("StateChangeReason", "unknown")
+                print(f"Error checking {table}: Athena query {state} - {reason}")
+                stale_tables.append(table)
+                continue
+
+            results = athena_client.get_query_results(QueryExecutionId=execution_id)
+            rows = results["ResultSet"]["Rows"]
+            # First row is header; second row is data
+            latest = rows[1]["Data"][0].get("VarCharValue") if len(rows) > 1 else None
+
+            if latest is None or latest == "":
                 stale_tables.append(table)
                 print(f"WARNING: No recent data in iceberg.zomato.{table}")
             else:
@@ -268,9 +292,6 @@ def validate_data_freshness(**context):
         except Exception as e:
             print(f"Error checking {table}: {e}")
             stale_tables.append(table)
-
-    cursor.close()
-    conn.close()
 
     context["ti"].xcom_push(key="stale_tables", value=stale_tables)
 

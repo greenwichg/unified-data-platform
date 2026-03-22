@@ -84,13 +84,13 @@ module "dynamodb" {
   tags        = local.tags
 }
 
-# ===================== Kafka (Self-Hosted EC2) =====================
+# ===================== Amazon MSK (replacing self-hosted Kafka on EC2) =====================
 module "kafka" {
   source          = "../../modules/kafka"
   environment     = var.environment
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnet_ids
-  instance_type   = "r8g.2xlarge"
+  instance_type   = "kafka.r8g.2xlarge"
   broker_count    = 3
   ebs_volume_size = 500
   tags            = local.tags
@@ -122,7 +122,8 @@ module "emr" {
   tags                 = local.tags
 }
 
-# ===================== Trino (3 Cluster Types) =====================
+# ===================== Athena (serverless, replacing self-hosted Trino on ECS) =====================
+# Glue Data Catalog replaces the self-hosted Hive Metastore.
 module "trino" {
   source      = "../../modules/trino"
   environment = var.environment

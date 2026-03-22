@@ -5,16 +5,16 @@
 ### Data Pipeline-1: Batch ETL
 - **Source**: Aurora MySQL
 - **Ingestion**: Apache Sqoop on Amazon EMR bulk-imports tables to S3 as ORC
-- **Processing**: Data flows through self-hosted Kafka cluster, then Apache Flink performs Complex Event Processing (CEP)
+- **Processing**: Data flows through Amazon MSK, then Apache Flink performs Complex Event Processing (CEP)
 - **Sink**: S3 data lake using ORC format with Apache Iceberg table format
 - **Feedback**: Flink CEP results feed back into Kafka for recursive pattern detection
 
 ### Data Pipeline-2: CDC (Change Data Capture)
 - **Source**: Aurora MySQL (binlog)
 - **Ingestion**: Kafka Debezium source connector in distributed mode (Worker-A, B, C)
-- **Serialization**: Avro format with Schema Registry
+- **Serialization**: Avro format with AWS Glue Schema Registry
 - **Topics**: `menu`, `promo`, `orders`, `users`
-- **Processing**: Amazon Flink consumes Avro from Kafka, transforms, writes ORC to S3
+- **Processing**: Amazon Flink consumes Avro from Amazon MSK, transforms, writes ORC to S3
 - **Sink**: S3 with Iceberg table format
 
 ### Data Pipeline-3: DynamoDB Streams
@@ -25,20 +25,21 @@
 
 ### Data Pipeline-4: Real-time Events
 - **Sources**: Microservices, Web Application, Mobile
-- **Ingestion**: Custom Kafka Producer → Self-Hosted Kafka Cluster 2 (topics: menu, promo, orders, users)
+- **Ingestion**: Custom Kafka Producer → Amazon MSK (topics: menu, promo, orders, users)
 - **Processing**: Amazon Flink with dual output:
-  - **Path A**: Direct to S3 (ORC) for batch analytics via Trino
-  - **Path B**: To intermediate Kafka cluster → EC2 Auto-Scaling consumer → Apache Druid for millisecond OLAP queries
+  - **Path A**: Direct to S3 (ORC) for batch analytics via Amazon Athena
+  - **Path B**: To intermediate MSK topic → EC2 Auto-Scaling consumer → Apache Druid for millisecond OLAP queries
 
-### Query Layer: Trino
-- Deployed on **ECS with R8g instances**
-- **3 isolated clusters** to prevent workload interference:
-  - **Adhoc Clusters**: Interactive queries from analysts
-  - **ETL Clusters**: Airflow-driven transformation workloads
-  - **Reporting Clusters**: Dashboard queries from Superset/Redash
+### Query Layer: Amazon Athena (Trino-based, serverless)
+- **Serverless (Athena)** — no infrastructure to manage
+- **3 Athena workgroups** to prevent workload interference:
+  - **Adhoc Workgroup**: Interactive queries from analysts
+  - **ETL Workgroup**: Airflow-driven transformation workloads
+  - **Reporting Workgroup**: Dashboard queries from Superset/Redash
+- Metadata managed by **AWS Glue Data Catalog**
 
 ### Real-time OLAP: Apache Druid
-- Ingests from Kafka via EC2 Auto-Scaling consumers
+- Ingests from Amazon MSK via EC2 Auto-Scaling consumers
 - Sub-second query response on 20B events/week
 - Deep storage on S3, segment caching on local SSD
 
