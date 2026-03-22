@@ -367,7 +367,7 @@ resource "aws_ecs_service" "superset_web" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.superset_web.arn
   desired_count   = var.web_desired_count
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids
@@ -390,7 +390,7 @@ resource "aws_ecs_service" "superset_worker" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.superset_worker.arn
   desired_count   = var.worker_desired_count
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids
@@ -405,7 +405,7 @@ resource "aws_ecs_service" "superset_beat" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.superset_beat.arn
   desired_count   = 1
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids

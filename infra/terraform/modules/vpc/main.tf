@@ -173,6 +173,22 @@ resource "aws_vpc_endpoint_route_table_association" "s3_private" {
   vpc_endpoint_id = aws_vpc_endpoint.s3.id
 }
 
+# ---------- VPC Endpoint for DynamoDB (saves NAT Gateway data transfer costs) ----------
+resource "aws_vpc_endpoint" "dynamodb" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.${data.aws_region.current.name}.dynamodb"
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-dynamodb-endpoint"
+  })
+}
+
+resource "aws_vpc_endpoint_route_table_association" "dynamodb_private" {
+  count           = length(var.availability_zones)
+  route_table_id  = aws_route_table.private[count.index].id
+  vpc_endpoint_id = aws_vpc_endpoint.dynamodb.id
+}
+
 data "aws_region" "current" {}
 
 # ---------- Outputs ----------

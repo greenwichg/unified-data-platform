@@ -88,6 +88,30 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake_process
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "data_lake_processed" {
+  bucket = aws_s3_bucket.data_lake_processed.id
+
+  rule {
+    id     = "intelligent-tiering"
+    status = "Enabled"
+
+    transition {
+      days          = 30
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
+
+  rule {
+    id     = "archive-old-partitions"
+    status = "Enabled"
+
+    transition {
+      days          = 180
+      storage_class = "GLACIER"
+    }
+  }
+}
+
 # ---------- Pipeline-specific prefixes (created as objects) ----------
 resource "aws_s3_object" "pipeline_prefixes" {
   for_each = toset([
@@ -115,6 +139,24 @@ resource "aws_s3_bucket" "airflow_logs" {
     Name    = "${var.project_name}-${var.environment}-airflow-logs"
     Purpose = "Airflow task logs"
   })
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "airflow_logs" {
+  bucket = aws_s3_bucket.airflow_logs.id
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+    expiration {
+      days = 90
+    }
+  }
 }
 
 # ---------- Checkpoint Bucket (Flink/Spark) ----------

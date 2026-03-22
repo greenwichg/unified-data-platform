@@ -229,13 +229,35 @@ resource "aws_autoscaling_group" "consumer_fleet" {
   max_size            = var.max_size
   vpc_zone_identifier = var.subnet_ids
 
-  launch_template {
-    id      = aws_launch_template.consumer_fleet.id
-    version = "$Latest"
+  dynamic "mixed_instances_policy" {
+    for_each = var.use_spot_instances ? [1] : []
+    content {
+      launch_template {
+        launch_template_specification {
+          launch_template_id = aws_launch_template.consumer_fleet.id
+          version            = "$Latest"
+        }
+      }
+
+      instances_distribution {
+        on_demand_base_capacity                  = var.on_demand_base_capacity
+        on_demand_percentage_above_base_capacity = var.on_demand_percentage_above_base
+        spot_allocation_strategy                 = var.spot_allocation_strategy
+      }
+    }
+  }
+
+  dynamic "launch_template" {
+    for_each = var.use_spot_instances ? [] : [1]
+    content {
+      id      = aws_launch_template.consumer_fleet.id
+      version = "$Latest"
+    }
   }
 
   health_check_type         = "EC2"
   health_check_grace_period = 300
+  capacity_rebalance        = var.use_spot_instances
 
   tag {
     key                 = "Name"

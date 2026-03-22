@@ -294,7 +294,7 @@ resource "aws_ecs_service" "jupyter" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.jupyter.arn
   desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids

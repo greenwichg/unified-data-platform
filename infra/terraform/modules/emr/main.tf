@@ -43,6 +43,18 @@ variable "core_instance_count" {
   default = 5
 }
 
+variable "use_spot_instances" {
+  description = "Use Spot instances for EMR core nodes (up to 70% savings)"
+  type        = bool
+  default     = true
+}
+
+variable "spot_bid_price_percent" {
+  description = "Maximum Spot price as percentage of On-Demand (e.g. 60 = 60%)"
+  type        = number
+  default     = 60
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
@@ -202,6 +214,7 @@ resource "aws_emr_cluster" "spark" {
   core_instance_group {
     instance_type  = var.core_instance_type
     instance_count = var.core_instance_count
+    bid_price      = var.use_spot_instances ? "${var.spot_bid_price_percent}%" : null
 
     ebs_config {
       size                 = 512

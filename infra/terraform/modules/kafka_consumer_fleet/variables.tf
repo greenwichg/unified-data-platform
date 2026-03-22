@@ -112,6 +112,30 @@ variable "scale_in_lag_threshold" {
   default     = 5000
 }
 
+variable "use_spot_instances" {
+  description = "Use Spot instances with On-Demand fallback (up to 70% savings)"
+  type        = bool
+  default     = true
+}
+
+variable "spot_allocation_strategy" {
+  description = "Spot allocation strategy: capacity-optimized or lowest-price"
+  type        = string
+  default     = "capacity-optimized"
+}
+
+variable "on_demand_base_capacity" {
+  description = "Minimum number of On-Demand instances (rest use Spot)"
+  type        = number
+  default     = 1
+}
+
+variable "on_demand_percentage_above_base" {
+  description = "Percentage of On-Demand for instances above base capacity"
+  type        = number
+  default     = 0
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

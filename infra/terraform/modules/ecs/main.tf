@@ -38,6 +38,24 @@ resource "aws_ecs_cluster" "main" {
   })
 }
 
+# ---------- Fargate Spot Capacity Provider (up to 70% savings) ----------
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name = aws_ecs_cluster.main.name
+
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 4
+    base              = 1
+  }
+
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight            = 1
+  }
+}
+
 # ---------- Security Group ----------
 resource "aws_security_group" "ecs" {
   name_prefix = "${var.project_name}-${var.environment}-ecs-"
@@ -136,7 +154,18 @@ resource "aws_ecs_service" "debezium" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.debezium.arn
   desired_count   = 3
-  launch_type     = "FARGATE"
+
+  # Use capacity provider strategy instead of launch_type for Spot savings
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight            = 1
+    base              = 1  # 1 guaranteed On-Demand for stability
+  }
+
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 4  # 80% Spot for remaining tasks
+  }
 
   network_configuration {
     subnets         = var.subnet_ids
@@ -162,6 +191,10 @@ output "cluster_id" {
 
 output "cluster_arn" {
   value = aws_ecs_cluster.main.arn
+}
+
+output "cluster_name" {
+  value = aws_ecs_cluster.main.name
 }
 
 output "security_group_id" {

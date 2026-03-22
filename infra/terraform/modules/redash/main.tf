@@ -327,7 +327,7 @@ resource "aws_ecs_service" "redash_server" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.redash_server.arn
   desired_count   = var.server_desired_count
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids
@@ -350,7 +350,7 @@ resource "aws_ecs_service" "redash_worker" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.redash_worker.arn
   desired_count   = var.worker_desired_count
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids
@@ -365,7 +365,7 @@ resource "aws_ecs_service" "redash_scheduler" {
   cluster         = var.ecs_cluster_id
   task_definition = aws_ecs_task_definition.redash_scheduler.arn
   desired_count   = 1
-  launch_type     = "FARGATE"
+  # Inherits cluster default capacity provider (FARGATE_SPOT primary, FARGATE fallback)
 
   network_configuration {
     subnets         = var.private_subnet_ids
