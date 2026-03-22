@@ -98,6 +98,42 @@ module "kafka" {
   tags            = local.tags
 }
 
+# ===================== Amazon MSK Secondary (Pipeline 4 -> Druid ingestion) =====================
+module "kafka_secondary" {
+  source              = "../../modules/kafka"
+  project_name        = "${local.project_name}-realtime"
+  environment         = var.environment
+  vpc_id              = module.vpc.vpc_id
+  subnet_ids          = module.vpc.private_subnet_ids
+  instance_type       = "kafka.r8g.2xlarge"
+  number_of_brokers   = 6
+  ebs_volume_size     = 1000
+  enhanced_monitoring = "PER_TOPIC_PER_BROKER"
+  tags = merge(local.tags, {
+    Cluster = "secondary"
+    Purpose = "druid-ingestion"
+  })
+}
+
+# ===================== Kafka Consumer Fleet (EC2 ASG: MSK 1 -> MSK 2 -> Druid) =====================
+module "kafka_consumer_fleet" {
+  source                            = "../../modules/kafka_consumer_fleet"
+  environment                       = var.environment
+  vpc_id                            = module.vpc.vpc_id
+  subnet_ids                        = module.vpc.private_subnet_ids
+  instance_type                     = "r8g.xlarge"
+  desired_capacity                  = 6
+  min_size                          = 3
+  max_size                          = 24
+  kafka_primary_security_group_id   = module.kafka.security_group_id
+  kafka_secondary_security_group_id = module.kafka_secondary.security_group_id
+  kafka_primary_cluster_arn         = module.kafka.cluster_arn
+  kafka_secondary_cluster_arn       = module.kafka_secondary.cluster_arn
+  kafka_primary_bootstrap_servers   = module.kafka.bootstrap_brokers_iam
+  kafka_secondary_bootstrap_servers = module.kafka_secondary.bootstrap_brokers_iam
+  tags                              = local.tags
+}
+
 # ===================== Flink (ECS) =====================
 module "flink" {
   source                  = "../../modules/flink"

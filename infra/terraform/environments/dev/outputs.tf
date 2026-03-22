@@ -50,6 +50,16 @@ output "kafka_security_group_id" {
   value       = module.kafka.security_group_id
 }
 
+output "kafka_secondary_security_group_id" {
+  description = "Security group ID for secondary Kafka (Druid ingestion) brokers"
+  value       = module.kafka_secondary.security_group_id
+}
+
+output "consumer_fleet_asg_name" {
+  description = "Auto-Scaling Group name for the Kafka consumer fleet"
+  value       = module.kafka_consumer_fleet.autoscaling_group_name
+}
+
 # ===================== EMR =====================
 
 output "emr_cluster_id" {
