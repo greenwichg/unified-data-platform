@@ -1,6 +1,11 @@
+# DEPRECATED: Self-hosted Kafka replaced by Amazon MSK. Kept for local dev only.
 # =============================================================================
 # Zomato Data Platform - Kafka (Local Development)
 # Single-broker Kafka for local testing of CDC and event pipelines
+#
+# PRODUCTION NOTE: In production, Amazon MSK with IAM authentication is used
+# instead of self-hosted Kafka on EC2. This Dockerfile is retained only for
+# local development and testing.
 # =============================================================================
 FROM confluentinc/cp-kafka:7.6.0
 

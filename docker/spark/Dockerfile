@@ -40,6 +40,9 @@ RUN echo "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkS
         >> /opt/bitnami/spark/conf/spark-defaults.conf && \
     echo "spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog" \
         >> /opt/bitnami/spark/conf/spark-defaults.conf && \
+    # NOTE: In production, Spark uses AWS Glue Data Catalog instead of Hive Metastore.
+    # Set spark.sql.catalog.iceberg.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+    # and omit the hive metastore URI. The settings below are for local dev only.
     echo "spark.sql.catalog.iceberg.type=hive" \
         >> /opt/bitnami/spark/conf/spark-defaults.conf && \
     echo "spark.sql.catalog.iceberg.uri=thrift://hive-metastore:9083" \

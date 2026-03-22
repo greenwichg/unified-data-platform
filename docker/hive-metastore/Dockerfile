@@ -1,7 +1,12 @@
+# DEPRECATED: Hive Metastore replaced by AWS Glue Data Catalog. Kept for local dev only.
 # =============================================================================
 # Zomato Data Platform - Hive Metastore (Local Development)
 # Standalone Hive Metastore Thrift server for Iceberg catalog metadata
 # Used by Trino, Flink, and Spark to share table metadata
+#
+# PRODUCTION NOTE: In production, AWS Glue Data Catalog is used instead of
+# this self-hosted Hive Metastore. This Dockerfile is retained only for
+# local development and testing.
 # =============================================================================
 FROM apache/hive:4.0.0
 

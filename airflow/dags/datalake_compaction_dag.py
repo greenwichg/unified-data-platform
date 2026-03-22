@@ -1,12 +1,13 @@
 """
 Airflow DAG: Data Lake Compaction (Iceberg Maintenance)
 
-Runs daily Iceberg table maintenance via Trino SQL:
+Runs daily Iceberg table maintenance via Athena SQL:
   - rewrite_data_files: compact small files into optimally-sized ORC files
   - expire_snapshots: remove snapshots older than retention period
   - remove_orphan_files: clean up unreferenced data files in S3
 
 Targets all core Iceberg tables in the zomato schema.
+Uses AWS Glue Data Catalog as the metastore.
 """
 
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 
-from common.trino_operator import TrinoOperator
+from common.trino_operator import AthenaQueryOperator
 from common.slack_alerts import on_failure_callback
 
 default_args = {
@@ -29,8 +30,8 @@ default_args = {
     "on_failure_callback": on_failure_callback,
 }
 
-TRINO_ETL_HOST = "{{ var.value.trino_etl_host }}"
-TRINO_ETL_PORT = 8080
+ATHENA_OUTPUT_S3 = "{{ var.value.athena_query_results_s3 }}"
+ATHENA_WORKGROUP = "etl"
 
 # Iceberg tables to maintain, with per-table compaction thresholds
 ICEBERG_TABLES = {

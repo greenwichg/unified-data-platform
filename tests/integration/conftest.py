@@ -1,8 +1,9 @@
 """
 Pytest fixtures for integration tests using testcontainers.
 
-Provides containerized Kafka, MinIO (S3-compatible), and Trino instances
-for end-to-end testing of the Zomato data platform pipelines.
+Provides containerized Kafka (MSK-compatible), MinIO (S3-compatible), and
+Athena-compatible (Trino-based) instances for end-to-end testing of the
+Zomato data platform pipelines.
 """
 
 import json
@@ -37,8 +38,8 @@ MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin"
 MINIO_BUCKET_RAW = "zomato-data-platform-test-raw-data-lake"
 MINIO_BUCKET_PROCESSED = "zomato-data-platform-test-processed"
-TRINO_IMAGE = "trinodb/trino:435"
-TRINO_PORT = 8080
+ATHENA_TEST_IMAGE = "trinodb/trino:435"  # Athena is Trino-based; use Trino image for local testing
+ATHENA_TEST_PORT = 8080
 
 
 # ---------------------------------------------------------------------------
@@ -207,17 +208,17 @@ def upload_test_data(s3_client, s3_buckets):
 
 
 # ---------------------------------------------------------------------------
-# Trino fixtures
+# Athena-compatible (Trino-based) fixtures
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
-def trino_container(minio_container, s3_endpoint_url) -> Generator:
-    """Start a Trino container configured with Hive connector pointing to MinIO."""
+def athena_container(minio_container, s3_endpoint_url) -> Generator:
+    """Start an Athena-compatible (Trino-based) container configured with Glue Data Catalog-style connector pointing to MinIO."""
     if DockerContainer is None:
         pytest.skip("testcontainers not installed")
 
-    hive_properties = (
+    glue_catalog_properties = (
         "connector.name=hive\n"
-        "hive.metastore=file\n"
+        "hive.metastore=glue\n"
         f"hive.s3.endpoint={s3_endpoint_url}\n"
         f"hive.s3.aws-access-key={MINIO_ACCESS_KEY}\n"
         f"hive.s3.aws-secret-key={MINIO_SECRET_KEY}\n"
@@ -228,36 +229,36 @@ def trino_container(minio_container, s3_endpoint_url) -> Generator:
     )
 
     container = (
-        DockerContainer(TRINO_IMAGE)
-        .with_exposed_ports(TRINO_PORT)
+        DockerContainer(ATHENA_TEST_IMAGE)
+        .with_exposed_ports(ATHENA_TEST_PORT)
         .with_env("TRINO_ENVIRONMENT", "testing")
     )
     container.start()
 
-    # Wait for Trino to be ready
-    _wait_for_trino(container, timeout=120)
+    # Wait for Athena-compatible engine to be ready
+    _wait_for_athena(container, timeout=120)
 
     yield container
     container.stop()
 
 
 @pytest.fixture(scope="session")
-def trino_host(trino_container) -> str:
-    """Return host:port for the Trino coordinator."""
-    host = trino_container.get_container_host_ip()
-    port = trino_container.get_exposed_port(TRINO_PORT)
+def athena_host(athena_container) -> str:
+    """Return host:port for the Athena-compatible (Trino-based) engine."""
+    host = athena_container.get_container_host_ip()
+    port = athena_container.get_exposed_port(ATHENA_TEST_PORT)
     return f"{host}:{port}"
 
 
 @pytest.fixture(scope="session")
-def trino_connection(trino_host):
-    """Return a Trino DB-API connection."""
+def athena_connection(athena_host):
+    """Return an Athena-compatible DB-API connection (via Trino driver, as Athena is Trino-based)."""
     try:
         import trino as trino_lib
     except ImportError:
-        pytest.skip("trino Python package not installed")
+        pytest.skip("trino Python package not installed (required for Athena-compatible testing)")
 
-    host, port = trino_host.split(":")
+    host, port = athena_host.split(":")
     conn = trino_lib.dbapi.connect(
         host=host,
         port=int(port),

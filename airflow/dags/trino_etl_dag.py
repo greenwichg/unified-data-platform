@@ -1,17 +1,19 @@
 """
-Airflow DAG: Trino ETL Queries
+Airflow DAG: Athena ETL Queries
 
-Runs scheduled Trino queries on the ETL cluster for data transformations,
+Runs scheduled Athena queries for data transformations,
 aggregations, and derived table generation. Joins data across MySQL, Druid,
 and the S3 data lake.
 
-250K+ queries/week, 2PB scanned via Trino.
+Migrated from self-hosted Trino to Amazon Athena (serverless).
+250K+ queries/week, 2PB scanned via Athena.
 """
 
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+from airflow.providers.amazon.aws.operators.athena import AthenaOperator
 from airflow.utils.task_group import TaskGroup
 
 default_args = {
@@ -24,10 +26,10 @@ default_args = {
     "execution_timeout": timedelta(hours=3),
 }
 
-TRINO_ETL_HOST = "{{ var.value.trino_etl_host }}"
+ATHENA_OUTPUT_S3 = "{{ var.value.athena_query_results_s3 }}"
 
-# Trino queries for daily aggregations
-TRINO_QUERIES = {
+# Athena queries for daily aggregations
+ATHENA_QUERIES = {
     "daily_order_summary": """
         CREATE TABLE IF NOT EXISTS analytics.daily_order_summary
         WITH (format = 'ORC', partitioned_by = ARRAY['dt'])
@@ -98,35 +100,35 @@ TRINO_QUERIES = {
 }
 
 with DAG(
-    dag_id="trino_etl_queries",
+    dag_id="athena_etl_queries",
     default_args=default_args,
-    description="Daily Trino ETL aggregations on the data lake",
+    description="Daily Athena ETL aggregations on the data lake",
     schedule_interval="0 2 * * *",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     max_active_runs=1,
-    tags=["trino", "etl", "analytics"],
+    tags=["athena", "etl", "analytics"],
 ) as dag:
 
     start = BashOperator(
         task_id="start",
-        bash_command="echo 'Starting Trino ETL queries - {{ ds }}'",
+        bash_command="echo 'Starting Athena ETL queries - {{ ds }}'",
     )
 
-    with TaskGroup("trino_queries") as queries_group:
-        for query_name, query_sql in TRINO_QUERIES.items():
-            BashOperator(
+    with TaskGroup("athena_queries") as queries_group:
+        for query_name, query_sql in ATHENA_QUERIES.items():
+            AthenaOperator(
                 task_id=query_name,
-                bash_command=(
-                    f"trino --server {TRINO_ETL_HOST}:8080 "
-                    f"--catalog iceberg --schema zomato "
-                    f"--execute \"{query_sql}\""
-                ),
+                query=query_sql,
+                database="zomato",
+                output_location=ATHENA_OUTPUT_S3,
+                workgroup="etl",
+                aws_conn_id="aws_default",
             )
 
     end = BashOperator(
         task_id="end",
-        bash_command="echo 'Trino ETL queries completed - {{ ds }}'",
+        bash_command="echo 'Athena ETL queries completed - {{ ds }}'",
     )
 
     start >> queries_group >> end

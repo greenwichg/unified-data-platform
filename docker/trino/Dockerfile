@@ -1,6 +1,11 @@
+# DEPRECATED: Trino replaced by Amazon Athena (serverless). Kept for local dev only.
 # =============================================================================
 # Zomato Data Platform - Trino Single-Node (Local Development)
 # Trino with Iceberg, MySQL, and Hive Metastore catalogs configured
+#
+# PRODUCTION NOTE: In production, Amazon Athena (serverless) is used instead
+# of self-hosted Trino on ECS. This Dockerfile is retained only for local
+# development and testing.
 # =============================================================================
 FROM trinodb/trino:latest
 

@@ -45,9 +45,9 @@ variable "aurora_instance_count" {
 # ===================== Kafka =====================
 
 variable "kafka_instance_type" {
-  description = "EC2 instance type for Kafka brokers"
+  description = "MSK broker instance type (migrated from self-hosted EC2 Kafka)"
   type        = string
-  default     = "i3en.6xlarge"
+  default     = "kafka.m7g.4xlarge"
 }
 
 variable "kafka_broker_count" {
@@ -82,10 +82,12 @@ variable "emr_core_instance_count" {
   default     = 10
 }
 
-# ===================== Trino =====================
+# ===================== Athena (replaced Trino) =====================
+# Trino worker count is no longer needed - Athena is serverless.
+# Kept for backward compatibility during migration; will be removed.
 
 variable "trino_etl_worker_count" {
-  description = "Number of Trino ETL worker nodes"
+  description = "DEPRECATED: Trino replaced by serverless Athena. This variable is unused."
   type        = number
-  default     = 20
+  default     = 0
 }
