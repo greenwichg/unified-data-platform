@@ -99,11 +99,11 @@ Continuously captures row-level changes from Aurora MySQL via Debezium binlog re
 ```
 start → [check_connector_status → branch → restart | healthy]
                                                           ↓
-                                              [check_kafka_lag, check_flink_jobs]
+                                                   [check_kafka_lag, check_flink_jobs]
                                                           ↓
-                                                validate_data_freshness
+                                                   validate_data_freshness
                                                           ↓
-                                                  publish_cdc_metrics → end
+                                                   publish_cdc_metrics → end
 ```
 
 ### Key Configuration
