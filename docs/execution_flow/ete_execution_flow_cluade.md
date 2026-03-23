@@ -14,7 +14,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
 ┌─────────────────────┐   ┌─────────────────────┐   ┌──────────────────────┐   ┌──────────────────────────┐
 │  Aurora MySQL       │   │  Aurora MySQL       │   │  DynamoDB            │   │  Microservices / Web /   │
 │  (Source DB)        │   │  (binlog)           │   │  (Streams Enabled)   │   │  Mobile Backends         │
-└────────┬────────────┘   └────────┬────────────┘   └────────┬─────────────┘   └────────┬─────────────────┘
+└────────┬────────────┘   └────────┬────────────┘   └─────────┬────────────┘   └─────────┬────────────────┘
          │                         │                          │                          │
     Pipeline 1                Pipeline 2                 Pipeline 3                 Pipeline 4
     Batch ETL                 Change Data Capture        DynamoDB Streams           Real-time Events
@@ -27,9 +27,9 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
     ┌─────────────────────────────────────────────────────────────┐            S3 (ORC)   MSK Cluster 2
     │                   S3 Data Lake                              │                 │           │
     │   Iceberg Tables (ORC format) + Raw ORC partitions          │                 │     EC2 Consumer Fleet
-    │   Managed by AWS Glue Data Catalog                          │                 │           │
-    └──────────────────────┬──────────────────────────────────────┘                 │     Apache Druid
-                           │                                                        │     (Real-time OLAP)
+    │   Managed by AWS Glue Data Catalog                          │                 │     Apache Druid
+    └──────────────────────┬──────────────────────────────────────┘                 │     (Real-time OLAP)
+                           │                                                        │
               ┌────────────┼────────────┐                                           │
               ▼            ▼            ▼                                           │
             Athena        Athena       Athena                                       │
