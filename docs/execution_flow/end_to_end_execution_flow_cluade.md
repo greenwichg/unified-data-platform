@@ -12,8 +12,8 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
 
 ```
 ┌─────────────────────┐   ┌─────────────────────┐   ┌──────────────────────┐   ┌──────────────────────────┐
-│  Aurora MySQL        │   │  Aurora MySQL        │   │  DynamoDB            │   │  Microservices / Web /   │
-│  (Source DB)         │   │  (binlog)            │   │  (Streams Enabled)   │   │  Mobile Backends         │
+│  Aurora MySQL       │   │  Aurora MySQL       │   │  DynamoDB            │   │  Microservices / Web /   │
+│  (Source DB)        │   │  (binlog)           │   │  (Streams Enabled)   │   │  Mobile Backends         │
 └────────┬────────────┘   └────────┬────────────┘   └────────┬─────────────┘   └────────┬─────────────────┘
          │                         │                          │                          │
     Pipeline 1                Pipeline 2                 Pipeline 3                 Pipeline 4
@@ -23,25 +23,25 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
     (Amazon EMR)              Flink CDC                  → S3 JSON                 → MSK Cluster 1
          │                         │                     → Spark (EMR)                   │
          │                         │                          │                     Flink Real-time
-         ▼                         ▼                          ▼                     ┌────┴────┐
-    ┌──────────────────────────────────────────────────────────────┐          S3 (ORC)   MSK Cluster 2
-    │                   S3 Data Lake                               │              │           │
-    │   Iceberg Tables (ORC format) + Raw ORC partitions          │              │    EC2 Consumer Fleet
-    │   Managed by AWS Glue Data Catalog                          │              │           │
-    └──────────────────────┬──────────────────────────────────────┘              │      Apache Druid
-                           │                                                     │     (Real-time OLAP)
-              ┌────────────┼────────────┐                                        │
-              ▼            ▼            ▼                                         │
-         Athena        Athena       Athena                                        │
-         (Adhoc)       (ETL)        (Reporting)                                   │
-              │            │            │                                         │
-              └────────────┼────────────┘                                         │
-                           ▼                                                      │
-              ┌────────────────────────────────────────────────────────────────────┘
+         ▼                         ▼                          ▼                     ┌────┴──────┐
+    ┌─────────────────────────────────────────────────────────────┐            S3 (ORC)   MSK Cluster 2
+    │                   S3 Data Lake                              │                 │           │
+    │   Iceberg Tables (ORC format) + Raw ORC partitions          │                 │     EC2 Consumer Fleet
+    │   Managed by AWS Glue Data Catalog                          │                 │           │
+    └──────────────────────┬──────────────────────────────────────┘                 │     Apache Druid
+                           │                                                        │     (Real-time OLAP)
+              ┌────────────┼────────────┐                                           │
+              ▼            ▼            ▼                                           │
+         Athena        Athena       Athena                                          │
+         (Adhoc)       (ETL)        (Reporting)                                     │
+              │            │            │                                           │
+              └────────────┼────────────┘                                           │
+                           ▼                                                        │ 
+              ┌─────────────────────────────────────────────────────────────────────┘
               │              Serving Layer
               │   ┌────────────┬─────────────┬─────────────┐
               └──►│  Superset  │   Redash    │  JupyterHub │
-                  │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks) │
+                  │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks)│
                   └────────────┴─────────────┴─────────────┘
 ```
 
