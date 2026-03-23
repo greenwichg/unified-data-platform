@@ -25,7 +25,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
          │                         │                          │                     Flink Real-time
          ▼                         ▼                          ▼                     ┌────┴──────┐
     ┌─────────────────────────────────────────────────────────────┐            S3 (ORC)   MSK Cluster 2
-    │                   S3 Data Lake                              │                 │           │
+    │                        S3 Data Lake                         │                 │           │
     │   Iceberg Tables (ORC format) + Raw ORC partitions          │                 │     EC2 Consumer Fleet
     │   Managed by AWS Glue Data Catalog                          │                 │     - Apache Druid (Real-time OLAP)
     └──────────────────────┬──────────────────────────────────────┘                 │
@@ -40,7 +40,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
               ┌─────────────────────────────────────────────────────────────────────┘
               │              Serving Layer
               │   ┌─────────────┬─────────────┬─────────────┐
-              └──►│  Superset   │   Redash    │  JupyterHub │
+              └──►│ Superset    │ Redash      │ JupyterHub  │
                   │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks) │
                   └─────────────┴─────────────┴─────────────┘
 ```
