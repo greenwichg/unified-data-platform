@@ -38,7 +38,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
               └────────────┼────────────┘                                           │
                            ▼                                                        │ 
               ┌─────────────────────────────────────────────────────────────────────┘
-              │              Serving Layer
+              │                  Serving Layer
               │   ┌─────────────┬─────────────┬─────────────┐
               └──►│ Superset    │ Redash      │ JupyterHub  │
                   │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks) │
