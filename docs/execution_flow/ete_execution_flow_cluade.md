@@ -32,8 +32,8 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
                            │                                                        │
               ┌────────────┼────────────┐                                           │
               ▼            ▼            ▼                                           │
-            Athena        Athena       Athena                                       │
-            (Adhoc)       (ETL)        (Reporting)                                  │
+           Athena       Athena       Athena                                        │
+           (Adhoc)      (ETL)        (Reporting)                                   │
               │            │            │                                           │
               └────────────┼────────────┘                                           │
                            ▼                                                        │ 
