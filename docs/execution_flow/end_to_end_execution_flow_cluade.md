@@ -17,7 +17,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
 └────────┬────────────┘   └────────┬────────────┘   └────────┬─────────────┘   └────────┬─────────────────┘
          │                         │                          │                          │
     Pipeline 1                Pipeline 2                 Pipeline 3                 Pipeline 4
-    Batch ETL                 CDC                        DynamoDB Streams           Real-time Events
+    Batch ETL                 Change Data Capture (CDC)  DynamoDB Streams           Real-time Events
          │                         │                          │                          │
     Spark JDBC                Debezium → MSK             ECS Multi-AZ              Custom Producer
     (Amazon EMR)              Flink CDC                  → S3 JSON                 → MSK Cluster 1
@@ -32,17 +32,17 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
                            │                                                        │     (Real-time OLAP)
               ┌────────────┼────────────┐                                           │
               ▼            ▼            ▼                                           │
-         Athena        Athena       Athena                                          │
-         (Adhoc)       (ETL)        (Reporting)                                     │
+            Athena        Athena       Athena                                       │
+            (Adhoc)       (ETL)        (Reporting)                                  │
               │            │            │                                           │
               └────────────┼────────────┘                                           │
                            ▼                                                        │ 
               ┌─────────────────────────────────────────────────────────────────────┘
               │              Serving Layer
-              │   ┌────────────┬─────────────┬─────────────┐
-              └──►│  Superset  │   Redash    │  JupyterHub │
-                  │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks)│
-                  └────────────┴─────────────┴─────────────┘
+              │   ┌─────────────┬─────────────┬─────────────┐
+              └──►│  Superset   │   Redash    │  JupyterHub │
+                  │ (Dashboards)│ (Ad-hoc SQL)│ (Notebooks) │
+                  └─────────────┴─────────────┴─────────────┘
 ```
 
 ---
