@@ -56,7 +56,7 @@ Performs full/incremental bulk imports of six relational tables (`orders`, `user
 
 ```
 start → [spark_import_orders, spark_import_users, ...] → log_quality_metrics → end
-         (parallel per table: submit + wait sensor)
+        (parallel per table: submit + wait sensor)
 ```
 
 ### Key Configuration
@@ -185,9 +185,9 @@ Ingests 450M messages/minute of application events (orders, deliveries, user act
 ```
 start → [monitor_flink, monitor_druid(check_ingestion → check_freshness)]
                               ↓
-                      check_e2e_latency
+                        check_e2e_latency
                               ↓
-                    publish_realtime_metrics → end
+                        publish_realtime_metrics → end
 ```
 
 ### Key Configuration
