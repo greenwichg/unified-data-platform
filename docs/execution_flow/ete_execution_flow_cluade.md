@@ -27,8 +27,8 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
     ┌─────────────────────────────────────────────────────────────┐            S3 (ORC)   MSK Cluster 2
     │                   S3 Data Lake                              │                 │           │
     │   Iceberg Tables (ORC format) + Raw ORC partitions          │                 │     EC2 Consumer Fleet
-    │   Managed by AWS Glue Data Catalog                          │                 │     Apache Druid
-    └──────────────────────┬──────────────────────────────────────┘                 │     (Real-time OLAP)
+    │   Managed by AWS Glue Data Catalog                          │                 │     - Apache Druid (Real-time OLAP)
+    └──────────────────────┬──────────────────────────────────────┘                 │
                            │                                                        │
               ┌────────────┼────────────┐                                           │
               ▼            ▼            ▼                                           │
