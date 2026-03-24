@@ -19,8 +19,8 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
     Pipeline 1                Pipeline 2                 Pipeline 3                 Pipeline 4
     Batch ETL                 Change Data Capture        DynamoDB Streams           Real-time Events
          │                         │                          │                          │
-    Spark JDBC (AWS EMR)      Debezium → MSK → Flink     ECS Multi-AZ              Custom Producer
-         │                         │                     → S3 JSON                 → MSK Cluster 1
+    Spark JDBC (AWS EMR)      Debezium → MSK → Flink     ECS Multi-AZ               Custom Producer
+         │                         │                     → S3 JSON                  → MSK Cluster 1
          │                         │                     → Spark (EMR)                   │
          │                         │                          │                     Flink Real-time
          ▼                         ▼                          ▼                     ┌────┴──────┐
