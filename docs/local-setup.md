@@ -15,7 +15,6 @@ This guide walks through setting up the full Zomato Data Platform on your local 
 | Apache Druid (Docker) | Apache Druid on EC2 R8g | `druid-coordinator`, `druid-historical`, `druid-middlemanager`, `druid-broker`, `druid-router` |
 | MinIO (Docker) | Amazon S3 | `minio`, `minio-init` |
 | Apache Airflow (Docker) | Amazon MWAA | `airflow-webserver`, `airflow-scheduler`, `airflow-init` |
-| — | Apache Superset on ECS Fargate | Not included locally (optional BI layer) |
 
 ---
 

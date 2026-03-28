@@ -40,7 +40,7 @@
 - **3 Athena workgroups** to prevent workload interference:
   - **Adhoc Workgroup**: Interactive queries from analysts
   - **ETL Workgroup**: Airflow-driven transformation workloads
-  - **Reporting Workgroup**: Dashboard queries from Superset/Redash
+  - **Reporting Workgroup**: Dashboard queries run directly against Athena
 - Metadata managed by **AWS Glue Data Catalog**
 
 ### Real-time OLAP: Apache Druid
@@ -48,11 +48,6 @@
 - Sub-second query response on 20B events/week
 - Deep storage on S3, segment caching on local SSD
 - Deployed on R8g instances (Coordinator, Broker, Historical, MiddleManager, Router)
-
-### Serving Layer
-- **Apache Superset**: Primary dashboarding platform (ECS Fargate + ElastiCache Redis)
-- **Redash**: Ad-hoc analytics tool (ECS Fargate + ElastiCache Redis)
-- **JupyterHub**: Data science notebooks (ECS Fargate, connects to Athena, Druid, S3)
 
 ### Orchestration
 - **Amazon MWAA** (Managed Workflows for Apache Airflow): Pipeline scheduling and monitoring
