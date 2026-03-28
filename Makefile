@@ -17,12 +17,18 @@
 #   docker-down    - Stop local Docker Compose stack
 #   clean          - Remove build artifacts, caches, and temp files
 #   help           - Show this help message
+#   seed           - One-time bulk seed (MySQL + DynamoDB + Kafka)
+#   produce        - Continuous real-time producer (MySQL + DynamoDB + Kafka)
+#   dev-setup      - Start local stack and seed data in one command
 # ==============================================================================
 
 .PHONY: build test test-unit test-int test-e2e lint format \
         deploy-dev deploy-staging deploy-prod \
         docker-build docker-up docker-down clean help \
-        migrate-athena msk-topics ops-athena-health
+        migrate-athena msk-topics ops-athena-health \
+        seed seed-mysql seed-dynamodb seed-kafka \
+        produce produce-mysql produce-dynamodb produce-kafka \
+        dev-setup
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -202,6 +208,35 @@ migrate-trino:  ## Run Trino/Iceberg schema migrations (local dev only)
 migrate-status:  ## Show migration status for all targets
 	$(PYTHON) scripts/migration/schema_migration.py status --target aurora --env $(ENV)
 	$(PYTHON) scripts/migration/schema_migration.py status --target trino --env $(ENV)
+
+seed:  ## Seed all data sources (MySQL + DynamoDB + Kafka)
+	$(PYTHON) infra/scripts/seed_data.py --target all
+
+seed-mysql:  ## Seed Aurora MySQL only
+	$(PYTHON) infra/scripts/seed_data.py --target mysql
+
+seed-dynamodb:  ## Seed DynamoDB only
+	$(PYTHON) infra/scripts/seed_data.py --target dynamodb
+
+seed-kafka:  ## Seed Kafka topics only
+	$(PYTHON) infra/scripts/seed_data.py --target kafka
+
+produce:  ## Produce real-time events to all targets at 5 events/sec (runs forever)
+	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 5
+
+produce-mysql:  ## Produce real-time events to MySQL only
+	$(PYTHON) infra/scripts/produce_realtime.py --target mysql
+
+produce-dynamodb:  ## Produce real-time events to DynamoDB only
+	$(PYTHON) infra/scripts/produce_realtime.py --target dynamodb
+
+produce-kafka:  ## Produce real-time events to Kafka only
+	$(PYTHON) infra/scripts/produce_realtime.py --target kafka
+
+dev-setup: docker-up  ## Start local stack and seed all data sources
+	@echo "Waiting for services to be ready..."
+	@sleep 15
+	@$(MAKE) seed
 
 kafka-topics:  ## Create Kafka topics (local dev)
 	bash scripts/create-kafka-topics.sh

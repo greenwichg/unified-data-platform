@@ -35,6 +35,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LOG_RETENTION_HOURS: 24
       KAFKA_COMPRESSION_TYPE: lz4
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   kafka-2:
     image: confluentinc/cp-kafka:7.6.0
@@ -108,6 +114,12 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # ==================== Stream Processing ====================
   flink-jobmanager:
@@ -255,6 +267,29 @@ services:
       mc mb local/zomato-data-platform-dev-checkpoints --ignore-existing;
       echo 'MinIO buckets created';
       "
+
+  # ==================== Seed Data (runs once on startup) ====================
+  seed:
+    image: python:3.11-slim
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DB: zomato
+      DYNAMODB_ENDPOINT: ""
+      KAFKA_BOOTSTRAP: kafka-1:29092
+    volumes:
+      - ./infra/scripts:/scripts
+    command: >
+      bash -c "pip install pymysql confluent-kafka --quiet &&
+               python /scripts/seed_data.py"
+    restart: "no"
 
 volumes:
   mysql_data:

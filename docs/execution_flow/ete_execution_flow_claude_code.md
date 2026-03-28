@@ -121,7 +121,7 @@ start → [check_connector_status → branch → restart | healthy]
 
 ## Pipeline 3: DynamoDB Streams
 
-**Path:** DynamoDB → ECS Stream Processor → S3 (JSON) → Spark EMR → S3 (ORC)
+**Path:** DynamoDB → Streams → S3 (JSON) → Spark EMR → S3 (ORC)
 
 ### What It Does
 
@@ -129,7 +129,7 @@ Captures change streams from four DynamoDB tables (`zomato-user-sessions`, `zoma
 
 ### Execution Flow
 
-1. **ECS Stream Processor** (multi-AZ, 3–18 auto-scaling instances) continuously reads DynamoDB Streams and writes gzipped JSON to S3 at `pipeline3-dynamodb/json-raw/` (64 MB buffer, 5-minute flush intervals).
+1. **DynamoDB Streams** continuously delivers change records which are written as gzipped JSON to S3 at `pipeline3-dynamodb/json-raw/` (64 MB buffer, 5-minute flush intervals).
 2. **Airflow DAG** `pipeline3_dynamodb_spark` triggers **hourly** (`@hourly`):
    - Submits a Spark step to the shared EMR cluster via `EmrAddStepsOperator`.
    - The Spark job (`spark_orc_converter.py`) reads the hourly JSON partition, converts to ORC with Snappy compression (256 MB stripe size, bloom filters on key columns), and writes to `pipeline3-dynamodb/orc/`.
