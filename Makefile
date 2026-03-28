@@ -34,7 +34,8 @@
         produce produce-mysql produce-dynamodb produce-kafka \
         produce-fast produce-kafka-fast produce-timed \
         produce-docker produce-docker-fast produce-docker-kafka produce-docker-stop \
-        dev-setup
+        dev-setup \
+        cdc-register cdc-status cdc-restart cdc-test
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -261,10 +262,45 @@ produce-docker-kafka:  ## Start producer container targeting Kafka only
 produce-docker-stop:  ## Stop the producer container
 	$(DOCKER_COMPOSE) --profile produce stop producer
 
-dev-setup: docker-up  ## Start local stack and seed all data sources
+dev-setup: docker-up  ## Start local stack, seed data, and register CDC connectors
 	@echo "Waiting for services to be ready..."
 	@sleep 15
 	@$(MAKE) seed
+	@$(MAKE) cdc-register
+
+# ==============================================================================
+# CDC (Pipeline 2) Testing
+# ==============================================================================
+
+cdc-register:  ## Register Debezium CDC connectors (auto-run by connect-init service)
+	bash infra/scripts/register-connectors.sh
+
+cdc-status:  ## Show status of all Debezium connectors
+	@curl -s http://localhost:8083/connectors?expand=status | \
+		python3 -c "import sys,json; [print(f'  {n}: {i[\"status\"][\"connector\"][\"state\"]}') for n,i in json.load(sys.stdin).items()]"
+
+cdc-restart:  ## Restart all CDC connectors
+	@for c in zomato-orders-cdc zomato-users-cdc zomato-menu-cdc zomato-promo-cdc; do \
+		echo "Restarting $$c..."; \
+		curl -sf -X POST http://localhost:8083/connectors/$$c/restart; \
+	done
+
+cdc-test:  ## Insert a test row into MySQL and verify it appears in Kafka
+	@echo "Inserting test order into MySQL..."
+	@docker exec $$(docker compose ps -q mysql) mysql -uroot -prootpass zomato -e \
+		"INSERT INTO orders (order_id,user_id,restaurant_id,status,subtotal,tax,delivery_fee,total_amount,payment_method,city,pincode,estimated_delivery_mins,created_at,updated_at) \
+		 SELECT 'cdc-test-001', user_id, restaurant_id, 'PLACED', 299.00, 14.95, 30.00, 343.95, 'UPI', city, '560001', 35, NOW(), NOW() \
+		 FROM orders LIMIT 1 \
+		 ON DUPLICATE KEY UPDATE status='PLACED';" 2>/dev/null
+	@echo "Waiting 5s for CDC to capture event..."
+	@sleep 5
+	@echo "Checking Kafka 'orders' topic for CDC event..."
+	@docker exec $$(docker compose ps -q kafka-1) kafka-console-consumer \
+		--bootstrap-server localhost:9092 \
+		--topic orders \
+		--from-beginning \
+		--max-messages 1 \
+		--timeout-ms 5000 2>/dev/null && echo "✓ CDC event found in Kafka!" || echo "✗ No event found — check cdc-status"
 
 kafka-topics:  ## Create Kafka topics (local dev)
 	bash scripts/create-kafka-topics.sh
