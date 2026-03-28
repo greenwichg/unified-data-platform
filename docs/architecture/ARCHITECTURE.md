@@ -1,5 +1,9 @@
 # Zomato's Data Platform Architecture on AWS
 
+> **Implementation notes vs original whiteboard design:**
+> - Pipeline 1 uses **Spark JDBC** (not Apache Sqoop shown on whiteboard) — Spark JDBC supports Iceberg and is faster for large tables
+> - Pipeline 2 uses **Amazon MSK** (not self-hosted Kafka on EC2 shown on whiteboard) — MSK is fully managed with built-in HA, no cluster ops overhead
+
 ## Pipeline Details
 
 ### Data Pipeline-1: Batch ETL
@@ -25,7 +29,7 @@
 
 ### Data Pipeline-4: Real-time Events
 - **Sources**: Microservices, Web Application, Mobile
-- **Ingestion**: Custom Kafka Producer → Amazon MSK Cluster 1 (topics: menu, promo, orders, users, topics)
+- **Ingestion**: Custom Kafka Producer → Amazon MSK Cluster 1 (topics: `orders`, `users`, `menu`, `promo`)
 - **Processing**: Amazon Managed Flink with dual output:
   - **Path A**: Direct to S3 (ORC) for batch analytics via Amazon Athena
   - **Path B**: To Amazon MSK Cluster 2 (`druid-ingestion-events`) → EC2 Auto-Scaling consumer fleet → Apache Druid for millisecond OLAP queries
