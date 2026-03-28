@@ -73,6 +73,13 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 # Start local infrastructure
 docker-compose up -d
 
+# Seed data (Aurora MySQL, DynamoDB, Kafka topics)
+python infra/scripts/seed_data.py                          # seed everything
+python infra/scripts/seed_data.py --target mysql           # MySQL only
+python infra/scripts/seed_data.py --target dynamodb        # DynamoDB only
+python infra/scripts/seed_data.py --target kafka           # Kafka only
+python infra/scripts/seed_data.py --users 100 --restaurants 40 --orders 500  # custom volume
+
 # Run Pipeline 1 (Batch ETL)
 cd platform/pipelines/pipeline1_batch_etl && python src/batch_etl.py
 
