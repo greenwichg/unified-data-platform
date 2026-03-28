@@ -4,7 +4,7 @@ Pipeline 4 - Custom Event Producer: Microservices/Web/Mobile → Kafka
 Custom Kafka producer that collects events from Zomato's microservices,
 web application, and mobile apps, and publishes them to Kafka topics.
 
-Topics: menu, promo, orders, users, topics (generic events)
+Topics: orders, users, menu, promo
 """
 
 import json
@@ -91,8 +91,8 @@ EVENT_TOPIC_MAPPING = {
     EventType.RESTAURANT_SEARCH: "menu",
     EventType.PROMO_APPLIED: "promo",
     EventType.PROMO_REDEEMED: "promo",
-    EventType.APP_OPENED: "topics",
-    EventType.PAGE_VIEWED: "topics",
+    EventType.APP_OPENED: "users",
+    EventType.PAGE_VIEWED: "users",
 }
 
 
@@ -151,9 +151,9 @@ class ZomatoEventProducer:
         """Send a single event to the appropriate Kafka topic."""
         try:
             event_type = EventType(event.event_type)
-            topic = EVENT_TOPIC_MAPPING.get(event_type, "topics")
+            topic = EVENT_TOPIC_MAPPING.get(event_type, "users")
         except ValueError:
-            topic = "topics"
+            topic = "users"
 
         key = event.user_id or event.event_id
         value = json.dumps(asdict(event)).encode("utf-8")

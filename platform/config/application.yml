@@ -43,9 +43,6 @@ kafka:
     - name: promo
       partitions: 64
       replication_factor: 3
-    - name: topics
-      partitions: 64
-      replication_factor: 3
     - name: druid-ingestion-events
       partitions: 64
       replication_factor: 3
