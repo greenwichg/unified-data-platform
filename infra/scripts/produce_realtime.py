@@ -251,6 +251,8 @@ def run(targets: list[str], rate: int, duration: int | None) -> None:
     log.info("Generating reference data...")
     users = generate_users(50)
     restaurants = generate_restaurants(20)
+    menu_items = generate_menu_items(restaurants)
+    promotions = generate_promotions()
     state.user_ids = [u["user_id"] for u in users]
     state.restaurant_ids = [r["restaurant_id"] for r in restaurants]
 
@@ -343,6 +345,18 @@ def run(targets: list[str], rate: int, duration: int | None) -> None:
                     mysql.write_user(user)
                 if kafka:
                     kafka.write_user(user)
+
+            # 6. Menu availability update (every 30 ticks) → 'menu' topic
+            if kafka and tick % 30 == 0 and menu_items:
+                item = random.choice(menu_items)
+                if kafka:
+                    kafka.write_menu(item)
+
+            # 7. Promo update (every 50 ticks) → 'promo' topic
+            if kafka and tick % 50 == 0 and promotions:
+                promo = random.choice(promotions)
+                if kafka:
+                    kafka.write_promo(promo)
 
             # Flush Kafka buffer periodically
             if kafka and tick % 10 == 0:
