@@ -82,40 +82,6 @@ variable "emr_core_instance_count" {
   default     = 10
 }
 
-# ===================== Dashboard Layer =====================
-
-variable "certificate_arn" {
-  description = "ACM certificate ARN for HTTPS on dashboard ALBs"
-  type        = string
-  default     = ""
-}
-
-variable "superset_database_url" {
-  description = "PostgreSQL connection URL for Superset metadata"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "superset_secret_key_arn" {
-  description = "Secrets Manager ARN for Superset SECRET_KEY"
-  type        = string
-  default     = ""
-}
-
-variable "redash_database_url" {
-  description = "PostgreSQL connection URL for Redash metadata"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "redash_cookie_secret_arn" {
-  description = "Secrets Manager ARN for Redash cookie secret"
-  type        = string
-  default     = ""
-}
-
 # ===================== Athena (replaced Trino) =====================
 # Trino worker count is no longer needed - Athena is serverless.
 # Kept for backward compatibility during migration; will be removed.

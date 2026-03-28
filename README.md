@@ -20,9 +20,6 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 - **Amazon Athena** (Trino-based, serverless): 250K+ queries/week, 2PB scanned, 3 Athena workgroups (Adhoc, ETL, Reporting)
 - **Druid**: 20B events/week, 8M queries/week, millisecond response times
 
-### Dashboards
-- Apache Superset, Redash, Jupyter Notebooks
-
 ## Project Structure
 
 ```
@@ -65,7 +62,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 | Schema Registry | AWS Glue Schema Registry | Schema management for streaming data |
 | Real-time OLAP | Apache Druid | Millisecond analytics |
 | Orchestration | Apache Airflow | Pipeline scheduling |
-| Dashboards | Superset, Redash, Jupyter | Visualization |
+| Dashboards | Amazon QuickSight (or any BI tool) | Visualization |
 
 ## Quick Start (Local Development)
 
