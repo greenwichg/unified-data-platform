@@ -17,13 +17,16 @@
 #   docker-down    - Stop local Docker Compose stack
 #   clean          - Remove build artifacts, caches, and temp files
 #   help           - Show this help message
-#   seed           - One-time bulk seed (MySQL + DynamoDB + Kafka)
-#   produce        - Continuous producer, all targets, 5 events/sec
+#   seed           - One-time bulk seed (MySQL + DynamoDB + Kafka)  [tools/]
+#   produce        - Continuous producer, all targets, 5 events/sec [tools/]
 #   produce-fast   - Continuous producer, all targets, 23 events/sec (~2M orders/day)
 #   produce-timed  - Continuous producer, 10/sec for 10 minutes
 #   produce-kafka  - Kafka only, 5 events/sec
 #   produce-docker - Run producer in a Docker container (docker-compose profile)
-#   dev-setup      - Start local stack and seed data in one command
+#   cdc-register   - Register Debezium CDC connectors
+#   cdc-status     - Show CDC connector health
+#   cdc-test       - Verify CDC end-to-end (MySQL → Kafka)
+#   dev-setup      - Start local stack, seed data, register CDC connectors
 # ==============================================================================
 
 .PHONY: build test test-unit test-int test-e2e lint format \
@@ -217,37 +220,37 @@ migrate-status:  ## Show migration status for all targets
 	$(PYTHON) scripts/migration/schema_migration.py status --target trino --env $(ENV)
 
 seed:  ## Seed all data sources (MySQL + DynamoDB + Kafka)
-	$(PYTHON) infra/scripts/seed_data.py --target all
+	$(PYTHON) tools/seed_data.py --target all
 
 seed-mysql:  ## Seed Aurora MySQL only
-	$(PYTHON) infra/scripts/seed_data.py --target mysql
+	$(PYTHON) tools/seed_data.py --target mysql
 
 seed-dynamodb:  ## Seed DynamoDB only
-	$(PYTHON) infra/scripts/seed_data.py --target dynamodb
+	$(PYTHON) tools/seed_data.py --target dynamodb
 
 seed-kafka:  ## Seed Kafka topics only
-	$(PYTHON) infra/scripts/seed_data.py --target kafka
+	$(PYTHON) tools/seed_data.py --target kafka
 
 produce:  ## Produce to all targets at 5 events/sec (runs forever)
-	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 5
+	$(PYTHON) tools/produce_realtime.py --target all --rate 5
 
 produce-fast:  ## Produce to all targets at 23 events/sec (~2M orders/day)
-	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 23
+	$(PYTHON) tools/produce_realtime.py --target all --rate 23
 
 produce-timed:  ## Produce to all targets at 10 events/sec for 10 minutes
-	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 10 --duration 600
+	$(PYTHON) tools/produce_realtime.py --target all --rate 10 --duration 600
 
 produce-mysql:  ## Produce real-time events to MySQL only (5/sec)
-	$(PYTHON) infra/scripts/produce_realtime.py --target mysql --rate 5
+	$(PYTHON) tools/produce_realtime.py --target mysql --rate 5
 
 produce-dynamodb:  ## Produce real-time events to DynamoDB only (5/sec)
-	$(PYTHON) infra/scripts/produce_realtime.py --target dynamodb --rate 5
+	$(PYTHON) tools/produce_realtime.py --target dynamodb --rate 5
 
 produce-kafka:  ## Produce real-time events to Kafka only (5/sec)
-	$(PYTHON) infra/scripts/produce_realtime.py --target kafka --rate 5
+	$(PYTHON) tools/produce_realtime.py --target kafka --rate 5
 
 produce-kafka-fast:  ## Produce to Kafka only at 23 events/sec (~2M orders/day)
-	$(PYTHON) infra/scripts/produce_realtime.py --target kafka --rate 23
+	$(PYTHON) tools/produce_realtime.py --target kafka --rate 23
 
 # docker-compose profile shortcuts (runs producer inside a container)
 produce-docker:  ## Start producer container via docker-compose (5/sec, all targets)
@@ -303,10 +306,10 @@ cdc-test:  ## Insert a test row into MySQL and verify it appears in Kafka
 		--timeout-ms 5000 2>/dev/null && echo "✓ CDC event found in Kafka!" || echo "✗ No event found — check cdc-status"
 
 kafka-topics:  ## Create Kafka topics (local dev)
-	bash scripts/create-kafka-topics.sh
+	bash infra/scripts/create-kafka-topics.sh
 
 msk-topics:  ## Create Kafka topics on MSK (production)
-	MSK_ENABLED=true bash scripts/create-kafka-topics.sh
+	MSK_ENABLED=true bash infra/scripts/create-kafka-topics.sh
 
 # ==============================================================================
 # Operations

@@ -312,10 +312,10 @@ services:
       DYNAMODB_ENDPOINT: ""
       KAFKA_BOOTSTRAP: kafka-1:29092
     volumes:
-      - ./infra/scripts:/scripts
+      - ./tools:/tools
     command: >
       bash -c "pip install pymysql confluent-kafka --quiet &&
-               python /scripts/seed_data.py"
+               python /tools/seed_data.py"
     restart: "no"
 
   # ==================== Real-time Producer (opt-in via --profile produce) ==
@@ -344,10 +344,10 @@ services:
       PRODUCE_TARGET: ${PRODUCE_TARGET:-all}
       PRODUCE_DURATION: ${PRODUCE_DURATION:-}
     volumes:
-      - ./infra/scripts:/scripts
+      - ./tools:/tools
     command: >
       bash -c "pip install pymysql confluent-kafka --quiet &&
-               python /scripts/produce_realtime.py
+               python /tools/produce_realtime.py
                  --target $${PRODUCE_TARGET}
                  --rate $${PRODUCE_RATE}
                  $${PRODUCE_DURATION:+--duration $${PRODUCE_DURATION}}"
