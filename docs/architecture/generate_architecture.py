@@ -87,7 +87,6 @@ def main():
                 topic_orders = MQ("orders")
                 topic_promo = MQ("promo")
                 topic_users = MQ("users")
-                topic_generic = MQ("topics")
 
         # ================================================================
         # FLINK CDC (P2)
@@ -162,7 +161,6 @@ def main():
         msk1 - topic_orders
         msk1 - topic_promo
         msk1 - topic_users
-        msk1 - topic_generic
 
         # MSK Cluster 1 → Flink CDC
         msk1 >> Edge(label="Avro") >> flink_cdc
