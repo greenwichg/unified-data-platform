@@ -44,7 +44,7 @@ def create_spark_session(app_name: str = "DynamoDB-Stream-to-ORC") -> SparkSessi
     )
 
 
-# Schema for the JSON records written by the Lambda processor
+# Schema for the JSON records written by the DynamoDB Streams processor
 STREAM_RECORD_SCHEMA = StructType(
     [
         StructField("event_id", StringType(), True),
