@@ -15,7 +15,7 @@ This guide walks through setting up the full Zomato Data Platform on your local 
 | Apache Druid (Docker) | Apache Druid on EC2 R8g | `druid-coordinator`, `druid-historical`, `druid-middlemanager`, `druid-broker`, `druid-router` |
 | MinIO (Docker) | Amazon S3 | `minio`, `minio-init` |
 | Apache Airflow (Docker) | Amazon MWAA | `airflow-webserver`, `airflow-scheduler`, `airflow-init` |
-| Apache Superset (Docker) | Apache Superset on ECS Fargate | `superset-init`, `superset` |
+| — | Apache Superset on ECS Fargate | Not included locally (optional BI layer) |
 
 ---
 
@@ -81,7 +81,6 @@ The defaults in `.env.example` work out of the box for local dev. Edit `local/.e
 | `MYSQL_PASSWORD` | `zomato_pass` | Application DB password |
 | `MINIO_ROOT_USER` | `minioadmin` | MinIO (S3 mock) admin user |
 | `MINIO_ROOT_PASSWORD` | `minioadmin` | MinIO admin password |
-| `SUPERSET_SECRET_KEY` | `local-dev-secret-change-in-prod` | Superset session key |
 
 ### Step 2 — Install Python Dependencies
 
@@ -184,13 +183,10 @@ make cdc-register
 | **Kafka Connect** | http://localhost:8083 | — |
 | **Schema Registry** | http://localhost:8081 | — |
 | **MinIO Console** | http://localhost:9001 | minioadmin / minioadmin |
-| **Superset** | http://localhost:8088 | admin / admin (auto-configured) |
 | **MySQL** | localhost:3306 | root / rootpass |
 | **Kafka Broker 1** | localhost:9092 | — |
 | **Kafka Broker 2** | localhost:9093 | — |
 
-> **Superset connections** are pre-configured automatically on first startup by `superset-init`: Trino, Druid, and MySQL are available immediately in SQL Lab and the chart builder.
->
 > **Druid Console UI** is served by `druid-router` at port 8888. The other Druid nodes (coordinator, historical, middlemanager, broker) are internal — you do not access them directly.
 
 ---
