@@ -327,37 +327,6 @@ services:
                airflow users create --username admin --password admin
                --firstname Admin --lastname User --role Admin --email admin@zomato.com"
 
-  # ==================== Dashboards ====================
-  # superset-init runs first: initialises the DB, creates the admin user,
-  # and pre-configures connections to Trino, Druid, and MySQL.
-  superset-init:
-    image: apache/superset:3.1.0
-    environment:
-      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-local-dev-secret-change-in-prod}"
-    depends_on:
-      - trino
-      - druid-router
-      - mysql
-    volumes:
-      - superset_home:/app/superset_home
-      - ./scripts/superset-init.sh:/superset-init.sh
-    command: ["bash", "/superset-init.sh"]
-    restart: "no"
-
-  superset:
-    image: apache/superset:3.1.0
-    hostname: superset
-    depends_on:
-      superset-init:
-        condition: service_completed_successfully
-    ports:
-      - "8088:8088"
-    environment:
-      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-local-dev-secret-change-in-prod}"
-    volumes:
-      - superset_home:/app/superset_home
-    command: ["superset", "run", "--host", "0.0.0.0", "--port", "8088", "--with-threads", "--reload"]
-
   # ==================== Object Storage (S3 mock) ====================
   minio:
     image: minio/minio:RELEASE.2024-03-15T01-07-19Z
@@ -450,4 +419,3 @@ volumes:
   airflow_logs:
   druid_data:
   druid_logs:
-  superset_home:
