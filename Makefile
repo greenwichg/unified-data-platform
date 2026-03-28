@@ -43,7 +43,8 @@
 PYTHON ?= python3
 PIP ?= pip3
 PYTEST ?= pytest
-DOCKER_COMPOSE ?= docker compose
+# docker-compose.yml lives in local/ — anchor project directory to repo root
+DOCKER_COMPOSE ?= docker compose -f local/docker-compose.yml --project-directory .
 AWS_REGION ?= us-east-1
 
 # Project paths
@@ -53,6 +54,7 @@ AIRFLOW_DIR := $(PROJECT_ROOT)/platform/airflow
 TESTS_DIR := $(PROJECT_ROOT)/tests
 DOCKER_DIR := $(PROJECT_ROOT)/infra/docker
 TERRAFORM_DIR := $(PROJECT_ROOT)/infra/terraform
+LOCAL_DIR := $(PROJECT_ROOT)/local
 
 # Docker image settings
 DOCKER_REGISTRY ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
@@ -126,14 +128,14 @@ test-pipeline4:  ## Run Pipeline 4 (Realtime) tests only
 
 lint:  ## Run all linters
 	@echo "Running ruff..."
-	ruff check $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/ --fix
+	ruff check $(PIPELINES_DIR) $(TESTS_DIR) local/tools/ $(AIRFLOW_DIR)/ --fix
 	@echo "Running ruff format check..."
-	ruff format --check $(PIPELINES_DIR) $(TESTS_DIR)
+	ruff format --check $(PIPELINES_DIR) $(TESTS_DIR) local/tools/
 	@echo "Linting passed."
 
 format:  ## Auto-format code with ruff
-	ruff format $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/
-	ruff check --fix $(PIPELINES_DIR) $(TESTS_DIR) infra/scripts/ $(AIRFLOW_DIR)/
+	ruff format $(PIPELINES_DIR) $(TESTS_DIR) local/tools/ $(AIRFLOW_DIR)/
+	ruff check --fix $(PIPELINES_DIR) $(TESTS_DIR) local/tools/ $(AIRFLOW_DIR)/
 	@echo "Formatting complete."
 
 typecheck:  ## Run mypy type checking
@@ -145,21 +147,21 @@ typecheck:  ## Run mypy type checking
 
 deploy-dev:  ## Deploy to dev environment
 	@echo "Deploying to DEV..."
-	bash scripts/deploy.sh dev apply
+	bash infra/scripts/deploy.sh dev apply
 
 deploy-staging:  ## Deploy to staging environment
 	@echo "Deploying to STAGING..."
-	bash scripts/deploy.sh staging apply
+	bash infra/scripts/deploy.sh staging apply
 
 deploy-prod:  ## Deploy to production environment
 	@echo "========================================="
 	@echo "WARNING: Deploying to PRODUCTION"
 	@echo "========================================="
 	@read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ] || exit 1
-	bash scripts/deploy.sh prod apply
+	bash infra/scripts/deploy.sh prod apply
 
 deploy-plan-%:  ## Show Terraform plan for an environment (e.g., make deploy-plan-dev)
-	bash scripts/deploy.sh $* plan
+	bash infra/scripts/deploy.sh $* plan
 
 # ==============================================================================
 # Docker
@@ -207,50 +209,50 @@ docker-ps:  ## Show running containers
 # ==============================================================================
 
 migrate-aurora:  ## Run Aurora MySQL schema migrations
-	$(PYTHON) scripts/migration/schema_migration.py migrate --target aurora --env $(ENV)
+	$(PYTHON) infra/scripts/migration/schema_migration.py migrate --target aurora --env $(ENV)
 
 migrate-athena:  ## Run Athena/Iceberg schema migrations (production)
-	$(PYTHON) scripts/migration/schema_migration.py migrate --target athena --env $(ENV)
+	$(PYTHON) infra/scripts/migration/schema_migration.py migrate --target athena --env $(ENV)
 
 migrate-trino:  ## Run Trino/Iceberg schema migrations (local dev only)
-	$(PYTHON) scripts/migration/schema_migration.py migrate --target trino --env $(ENV)
+	$(PYTHON) infra/scripts/migration/schema_migration.py migrate --target trino --env $(ENV)
 
 migrate-status:  ## Show migration status for all targets
-	$(PYTHON) scripts/migration/schema_migration.py status --target aurora --env $(ENV)
-	$(PYTHON) scripts/migration/schema_migration.py status --target trino --env $(ENV)
+	$(PYTHON) infra/scripts/migration/schema_migration.py status --target aurora --env $(ENV)
+	$(PYTHON) infra/scripts/migration/schema_migration.py status --target trino --env $(ENV)
 
 seed:  ## Seed all data sources (MySQL + DynamoDB + Kafka)
-	$(PYTHON) tools/seed_data.py --target all
+	$(PYTHON) local/tools/seed_data.py --target all
 
 seed-mysql:  ## Seed Aurora MySQL only
-	$(PYTHON) tools/seed_data.py --target mysql
+	$(PYTHON) local/tools/seed_data.py --target mysql
 
 seed-dynamodb:  ## Seed DynamoDB only
-	$(PYTHON) tools/seed_data.py --target dynamodb
+	$(PYTHON) local/tools/seed_data.py --target dynamodb
 
 seed-kafka:  ## Seed Kafka topics only
-	$(PYTHON) tools/seed_data.py --target kafka
+	$(PYTHON) local/tools/seed_data.py --target kafka
 
 produce:  ## Produce to all targets at 5 events/sec (runs forever)
-	$(PYTHON) tools/produce_realtime.py --target all --rate 5
+	$(PYTHON) local/tools/produce_realtime.py --target all --rate 5
 
 produce-fast:  ## Produce to all targets at 23 events/sec (~2M orders/day)
-	$(PYTHON) tools/produce_realtime.py --target all --rate 23
+	$(PYTHON) local/tools/produce_realtime.py --target all --rate 23
 
 produce-timed:  ## Produce to all targets at 10 events/sec for 10 minutes
-	$(PYTHON) tools/produce_realtime.py --target all --rate 10 --duration 600
+	$(PYTHON) local/tools/produce_realtime.py --target all --rate 10 --duration 600
 
 produce-mysql:  ## Produce real-time events to MySQL only (5/sec)
-	$(PYTHON) tools/produce_realtime.py --target mysql --rate 5
+	$(PYTHON) local/tools/produce_realtime.py --target mysql --rate 5
 
 produce-dynamodb:  ## Produce real-time events to DynamoDB only (5/sec)
-	$(PYTHON) tools/produce_realtime.py --target dynamodb --rate 5
+	$(PYTHON) local/tools/produce_realtime.py --target dynamodb --rate 5
 
 produce-kafka:  ## Produce real-time events to Kafka only (5/sec)
-	$(PYTHON) tools/produce_realtime.py --target kafka --rate 5
+	$(PYTHON) local/tools/produce_realtime.py --target kafka --rate 5
 
 produce-kafka-fast:  ## Produce to Kafka only at 23 events/sec (~2M orders/day)
-	$(PYTHON) tools/produce_realtime.py --target kafka --rate 23
+	$(PYTHON) local/tools/produce_realtime.py --target kafka --rate 23
 
 # docker-compose profile shortcuts (runs producer inside a container)
 produce-docker:  ## Start producer container via docker-compose (5/sec, all targets)
@@ -276,7 +278,7 @@ dev-setup: docker-up  ## Start local stack, seed data, and register CDC connecto
 # ==============================================================================
 
 cdc-register:  ## Register Debezium CDC connectors (auto-run by connect-init service)
-	bash infra/scripts/register-connectors.sh
+	bash local/scripts/register-connectors.sh
 
 cdc-status:  ## Show status of all Debezium connectors
 	@curl -s http://localhost:8083/connectors?expand=status | \
@@ -306,28 +308,28 @@ cdc-test:  ## Insert a test row into MySQL and verify it appears in Kafka
 		--timeout-ms 5000 2>/dev/null && echo "✓ CDC event found in Kafka!" || echo "✗ No event found — check cdc-status"
 
 kafka-topics:  ## Create Kafka topics (local dev)
-	bash infra/scripts/create-kafka-topics.sh
+	bash local/scripts/create-kafka-topics.sh
 
 msk-topics:  ## Create Kafka topics on MSK (production)
-	MSK_ENABLED=true bash infra/scripts/create-kafka-topics.sh
+	bash infra/scripts/ops/msk-create-topics.sh
 
 # ==============================================================================
 # Operations
 # ==============================================================================
 
-ops-kafka-rebalance:  ## Trigger Kafka partition rebalance - dry-run (local dev; MSK handles this automatically)
-	bash scripts/ops/kafka_rebalance.sh --dry-run
+ops-kafka-rebalance:  ## Trigger Kafka partition rebalance - dry-run (MSK handles this automatically in prod)
+	bash infra/scripts/ops/kafka_rebalance.sh --dry-run
 
-ops-athena-health:  ## Check Athena workgroup health (replaces Trino health check)
-	bash scripts/ops/trino_cluster_health.sh
+ops-athena-health:  ## Check Athena workgroup health
+	bash infra/scripts/ops/trino_cluster_health.sh
 
 ops-trino-health: ops-athena-health  ## DEPRECATED: Alias for ops-athena-health
 
 ops-druid-compact:  ## Trigger Druid segment compaction
-	bash scripts/ops/druid_compaction_trigger.sh
+	bash infra/scripts/ops/druid_compaction_trigger.sh
 
 ops-aurora-snapshot:  ## Create Aurora MySQL snapshot
-	bash scripts/backup/aurora_snapshot.sh
+	bash infra/scripts/backup/aurora_snapshot.sh
 
 # ==============================================================================
 # Cleanup

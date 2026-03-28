@@ -63,13 +63,13 @@ jobs:
           # Production uses Amazon MSK (Kafka) and Amazon Athena (Trino replacement).
           # These images are retained for local development only.
           ALL_IMAGES='[
-            {"name":"flink","context":"docker/flink","dockerfile":"docker/flink/Dockerfile"},
-            {"name":"spark","context":"docker/spark","dockerfile":"docker/spark/Dockerfile"},
-            {"name":"airflow","context":"docker/airflow","dockerfile":"docker/airflow/Dockerfile"},
-            {"name":"msk","context":"docker/msk","dockerfile":"docker/msk/Dockerfile"},
-            {"name":"athena","context":"docker/athena","dockerfile":"docker/athena/Dockerfile"},
-            {"name":"druid","context":"docker/druid","dockerfile":"docker/druid/Dockerfile"},
-            {"name":"debezium","context":"docker","dockerfile":"docker/debezium/Dockerfile"}
+            {"name":"flink","context":"infra/docker/flink","dockerfile":"infra/docker/flink/Dockerfile"},
+            {"name":"spark","context":"infra/docker/spark","dockerfile":"infra/docker/spark/Dockerfile"},
+            {"name":"airflow","context":"infra/docker/airflow","dockerfile":"infra/docker/airflow/Dockerfile"},
+            {"name":"msk","context":"infra/docker/msk","dockerfile":"infra/docker/msk/Dockerfile"},
+            {"name":"athena","context":"infra/docker/athena","dockerfile":"infra/docker/athena/Dockerfile"},
+            {"name":"druid","context":"infra/docker/druid","dockerfile":"infra/docker/druid/Dockerfile"},
+            {"name":"debezium","context":"infra/docker","dockerfile":"infra/docker/debezium/Dockerfile"}
           ]'
 
           INPUT="${{ github.event.inputs.image }}"
