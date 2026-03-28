@@ -84,6 +84,7 @@ case "$ACTION" in
         echo "  Trino (local):   localhost:8085  (prod: Amazon Athena)"
         echo "  Druid:           localhost:8888"
         echo "  Airflow:         localhost:8080 (admin/admin)"
+        echo "  Superset:        localhost:8088"
         echo "  MinIO Console:   localhost:9001 (minioadmin/minioadmin)"
         echo "  MySQL:           localhost:3306"
         ;;

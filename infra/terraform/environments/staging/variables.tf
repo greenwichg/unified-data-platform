@@ -90,6 +90,19 @@ variable "certificate_arn" {
   default     = ""
 }
 
+variable "superset_database_url" {
+  description = "PostgreSQL connection URL for Superset metadata"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "superset_secret_key_arn" {
+  description = "Secrets Manager ARN for Superset SECRET_KEY"
+  type        = string
+  default     = ""
+}
+
 variable "redash_database_url" {
   description = "PostgreSQL connection URL for Redash metadata"
   type        = string

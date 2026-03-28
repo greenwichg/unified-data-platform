@@ -69,6 +69,11 @@ output "emr_cluster_id" {
 
 # ===================== Dashboard Layer =====================
 
+output "superset_alb_dns" {
+  description = "Superset ALB DNS name"
+  value       = module.superset.alb_dns_name
+}
+
 output "redash_alb_dns" {
   description = "Redash ALB DNS name"
   value       = module.redash.alb_dns_name
