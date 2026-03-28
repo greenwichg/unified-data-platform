@@ -654,7 +654,7 @@ class KafkaWriter:
         self._produce("users", user["user_id"], {**user, "event_type": "USER_EVENT", "source": "pipeline4"})
 
     def write_location(self, location: dict) -> None:
-        self._produce("topics", location["user_id"], {**location, "event_type": "LOCATION_EVENT", "source": "pipeline4"})
+        self._produce("users", location["user_id"], {**location, "event_type": "USER_LOCATION_UPDATE", "source": "pipeline4"})
 
     def write_menu(self, item: dict) -> None:
         self._produce("menu", item["item_id"], {**item, "event_type": "MENU_EVENT", "source": "pipeline4"})

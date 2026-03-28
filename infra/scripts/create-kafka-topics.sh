@@ -34,12 +34,15 @@ echo "Creating Kafka topics on: $KAFKA_BOOTSTRAP"
 echo "Partitions: $PARTITIONS, Replication: $REPLICATION"
 
 # Core data topics (used by Pipeline 2 CDC and Pipeline 4 Real-time)
+# orders : order lifecycle events + payments + delivery events
+# users  : user signups, logins, location updates, ratings
+# menu   : menu views, item additions, restaurant searches
+# promo  : promo applied/redeemed events
 TOPICS=(
     "orders"
     "users"
     "menu"
     "promo"
-    "topics"
 )
 
 for topic in "${TOPICS[@]}"; do

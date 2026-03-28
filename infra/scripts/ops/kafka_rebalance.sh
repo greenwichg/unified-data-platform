@@ -46,7 +46,6 @@ PLATFORM_TOPICS=(
     "users"
     "menu"
     "promo"
-    "topics"
     "druid-ingestion-events"
     "order-spike-alerts"
 )

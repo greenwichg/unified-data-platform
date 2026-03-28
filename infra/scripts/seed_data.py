@@ -143,6 +143,11 @@ def seed_kafka(
     for promo in promotions:
         writer.write_promo(promo)
 
+    locations = generate_ddb_user_locations(users, n=min(50, len(users)))
+    log.info("Producing %d location events to 'users' topic...", len(locations))
+    for location in locations:
+        writer.write_location(location)
+
     writer.flush()
     log.info("Kafka seed complete.")
 
