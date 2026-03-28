@@ -19,7 +19,7 @@ Zomato's Data Platform processes **2M+ orders/day**, **450M Kafka messages/minut
     Pipeline 1                Pipeline 2                 Pipeline 3                 Pipeline 4
     Batch ETL                 Change Data Capture        DynamoDB Streams           Real-time Events
          │                         │                          │                          │
-    Spark JDBC (AWS EMR)      Debezium → MSK → Flink     ECS Multi-AZ               Custom Producer
+    Spark JDBC (AWS EMR)      Debezium → MSK → Flink     DynamoDB Streams           Custom Producer
          │                         │                     → S3 JSON                  → MSK Cluster 1
          │                         │                     → Spark (EMR)                   │
          │                         │                          │                     Flink Real-time
@@ -111,7 +111,7 @@ The `pipeline2_cdc_management` DAG runs **every 10 minutes** and performs:
 
 ### 3.3 Pipeline 3: DynamoDB Streams
 
-**Path:** DynamoDB (Streams) → ECS Multi-AZ → S3 (JSON) → Spark (Amazon EMR) → ORC → S3
+**Path:** DynamoDB → Streams → S3 (JSON) → Spark (Amazon EMR) → ORC → S3
 
 **Schedule:** Hourly (`@hourly`)
 
@@ -120,7 +120,7 @@ The `pipeline2_cdc_management` DAG runs **every 10 minutes** and performs:
 #### Execution Steps
 
 1. **DynamoDB Streams** are enabled on three tables: `orders`, `payments`, and `user_locations` (all with `NEW_AND_OLD_IMAGES` view type).
-2. An **ECS Multi-AZ service** (6 desired tasks, spread across 3 AZs) consumes stream records in real-time micro-batches. Each record is deserialized from DynamoDB's typed attribute format into flat JSON, enriched with metadata (`event_id`, `table_name`, `processed_at`), and written to S3 as newline-delimited JSON files partitioned by `table_name/YYYY/MM/DD/HH`.
+2. **DynamoDB Streams** delivers change records which are deserialized from DynamoDB's typed attribute format into flat JSON, enriched with metadata (`event_id`, `table_name`, `processed_at`), and written to S3 as newline-delimited JSON files partitioned by `table_name/YYYY/MM/DD/HH`.
 3. Every hour, Airflow triggers the `pipeline3_dynamodb_spark` DAG.
 4. An **EMR Spark step** (`spark_orc_converter.py`) reads the previous hour's JSON files from S3, applies per-table processing:
    - **Orders:** Extracts nested data fields, casts numeric types, deduplicates by `order_id`, adds `dt` and `hour` partition columns.
