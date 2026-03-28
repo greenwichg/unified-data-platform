@@ -17,13 +17,18 @@
 #   docker-down    - Stop local Docker Compose stack
 #   clean          - Remove build artifacts, caches, and temp files
 #   help           - Show this help message
+#   seed           - One-time bulk seed (MySQL + DynamoDB + Kafka)
+#   produce        - Continuous real-time producer (MySQL + DynamoDB + Kafka)
+#   dev-setup      - Start local stack and seed data in one command
 # ==============================================================================
 
 .PHONY: build test test-unit test-int test-e2e lint format \
         deploy-dev deploy-staging deploy-prod \
         docker-build docker-up docker-down clean help \
         migrate-athena msk-topics ops-athena-health \
-        seed seed-mysql seed-dynamodb seed-kafka dev-setup
+        seed seed-mysql seed-dynamodb seed-kafka \
+        produce produce-mysql produce-dynamodb produce-kafka \
+        dev-setup
 
 PYTHON ?= python3
 PIP ?= pip3
