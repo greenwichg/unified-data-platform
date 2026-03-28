@@ -1,12 +1,11 @@
 # ============================================================================
 # Pipeline 3 - DynamoDB Streams Configuration
-# DynamoDB -> Streams -> Lambda/ECS -> S3 JSON -> Spark (EMR) -> ORC -> S3
-# ECS Multi-AZ deployment for high availability
+# DynamoDB -> Streams -> Lambda -> S3 JSON -> Spark (EMR) -> ORC -> S3
 # ============================================================================
 
 pipeline:
   name: pipeline3_dynamodb_streams
-  description: "DynamoDB Streams to S3 data lake via ECS processors and EMR Spark"
+  description: "DynamoDB Streams to S3 data lake via Lambda and EMR Spark"
   schedule: "@hourly"
   owner: data-platform-team
   alert_channel: "#data-pipeline-alerts"
@@ -60,46 +59,6 @@ dynamodb:
       bisect_on_error: true
       max_retry_attempts: 3
       description: "User preferences, favorites, and dietary filters"
-
-# ----- ECS Stream Processors -----
-ecs:
-  cluster_name: zomato-dynamodb-stream-processors
-  deployment:
-    multi_az: true
-    availability_zones:
-      - ap-south-1a
-      - ap-south-1b
-      - ap-south-1c
-    desired_count: 6
-    min_count: 3
-    max_count: 18
-
-  task_definition:
-    family: dynamodb-stream-processor
-    cpu: 1024
-    memory: 2048
-    network_mode: awsvpc
-    execution_role_arn: "arn:aws:iam::ACCOUNT_ID:role/zomato-ecs-task-execution-role"
-    task_role_arn: "arn:aws:iam::ACCOUNT_ID:role/zomato-ecs-dynamodb-stream-role"
-
-  autoscaling:
-    target_tracking:
-      metric: ECSServiceAverageCPUUtilization
-      target_value: 65
-      scale_in_cooldown: 300
-      scale_out_cooldown: 120
-    step_scaling:
-      - threshold: 80
-        adjustment: 2
-      - threshold: 95
-        adjustment: 4
-
-  health_check:
-    path: /health
-    interval: 30
-    timeout: 5
-    healthy_threshold: 2
-    unhealthy_threshold: 3
 
 # ----- S3 Staging (JSON) -----
 s3_staging:

@@ -12,7 +12,7 @@ resource "aws_iam_role" "dynamodb_streams_consumer" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = ["lambda.amazonaws.com", "ecs-tasks.amazonaws.com"]
+        Service = "lambda.amazonaws.com"
       }
     }]
   })
