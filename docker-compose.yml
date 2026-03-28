@@ -92,6 +92,33 @@ services:
       VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  # Registers Debezium CDC connectors once kafka-connect is healthy.
+  # Runs once and exits — re-run with: docker-compose run --rm connect-init
+  connect-init:
+    image: curlimages/curl:8.6.0
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    environment:
+      KAFKA_CONNECT_URL: http://kafka-connect:8083
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      KAFKA_BOOTSTRAP: kafka-1:29092
+    volumes:
+      - ./infra/scripts:/scripts
+    entrypoint: ["sh", "/scripts/register-connectors.sh"]
+    restart: "no"
 
   # ==================== Databases ====================
   mysql:
@@ -113,7 +140,7 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./scripts/mysql-init:/docker-entrypoint-initdb.d
+      - ./infra/scripts/mysql-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
       interval: 10s
