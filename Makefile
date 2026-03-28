@@ -216,6 +216,18 @@ seed-dynamodb:  ## Seed DynamoDB only
 seed-kafka:  ## Seed Kafka topics only
 	$(PYTHON) infra/scripts/seed_data.py --target kafka
 
+produce:  ## Produce real-time events to all targets at 5 events/sec (runs forever)
+	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 5
+
+produce-mysql:  ## Produce real-time events to MySQL only
+	$(PYTHON) infra/scripts/produce_realtime.py --target mysql
+
+produce-dynamodb:  ## Produce real-time events to DynamoDB only
+	$(PYTHON) infra/scripts/produce_realtime.py --target dynamodb
+
+produce-kafka:  ## Produce real-time events to Kafka only
+	$(PYTHON) infra/scripts/produce_realtime.py --target kafka
+
 dev-setup: docker-up  ## Start local stack and seed all data sources
 	@echo "Waiting for services to be ready..."
 	@sleep 15

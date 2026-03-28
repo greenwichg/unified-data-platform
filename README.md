@@ -88,6 +88,13 @@ make seed-mysql
 make seed-dynamodb
 make seed-kafka
 
+# Produce continuous real-time events (runs forever until Ctrl+C)
+make produce                          # all targets at 5 events/sec
+make produce-kafka                    # Kafka only
+make produce-mysql                    # MySQL only
+make produce-dynamodb                 # DynamoDB only
+python infra/scripts/produce_realtime.py --rate 23 --duration 3600  # 2M orders/day for 1h
+
 # Run Pipeline 1 (Batch ETL)
 cd platform/pipelines/pipeline1_batch_etl && python src/batch_etl.py
 
