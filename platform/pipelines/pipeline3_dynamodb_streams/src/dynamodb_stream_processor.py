@@ -1,7 +1,7 @@
 """
 Pipeline 3 - DynamoDB Streams → S3 JSON → Spark (EMR) → ORC → S3
 
-Processes DynamoDB Streams events via Lambda, stages as JSON in S3,
+Processes DynamoDB Streams events, stages as JSON in S3,
 then runs Spark jobs on EMR to convert to ORC format for the data lake.
 """
 

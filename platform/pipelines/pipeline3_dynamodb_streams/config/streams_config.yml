@@ -1,11 +1,11 @@
 # ============================================================================
 # Pipeline 3 - DynamoDB Streams Configuration
-# DynamoDB -> Streams -> Lambda -> S3 JSON -> Spark (EMR) -> ORC -> S3
+# DynamoDB -> Streams -> S3 JSON -> Spark (EMR) -> ORC -> S3
 # ============================================================================
 
 pipeline:
   name: pipeline3_dynamodb_streams
-  description: "DynamoDB Streams to S3 data lake via Lambda and EMR Spark"
+  description: "DynamoDB Streams to S3 data lake via EMR Spark"
   schedule: "@hourly"
   owner: data-platform-team
   alert_channel: "#data-pipeline-alerts"
