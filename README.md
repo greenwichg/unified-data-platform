@@ -77,6 +77,12 @@ make dev-setup
 make docker-up   # also triggers seed service automatically via docker-compose
 make seed        # re-seed manually at any time
 
+# Seed startup flow (automatic on docker-compose up)
+# docker-compose up
+#     ├── mysql (healthy?) ──┐
+#     └── kafka-1 (healthy?) ┤
+#                            └── seed (runs once, exits)
+
 # Seed individual sources
 make seed-mysql
 make seed-dynamodb
