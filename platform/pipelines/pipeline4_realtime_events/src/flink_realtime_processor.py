@@ -37,7 +37,7 @@ FLINK_SQL = {
             WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '10' SECOND
         ) WITH (
             'connector' = 'kafka',
-            'topic' = 'orders;users;menu;promo;topics',
+            'topic' = 'orders;users;menu;promo',
             'properties.bootstrap.servers' = '{kafka_bootstrap}',
             'properties.group.id' = 'flink-realtime-events',
             'properties.security.protocol' = 'SASL_SSL',

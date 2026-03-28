@@ -1,14 +1,13 @@
 """
 Pipeline 4 - EC2 Auto-Scaling Kafka Consumer -> Druid Feeder
 
-Consumes events from multiple Kafka topics on the primary cluster,
-performs lightweight enrichment and batching, then produces to the
-druid-ingestion-events topic on the secondary Kafka cluster.
+Consumes enriched events from the druid-ingestion-events topic on MSK Cluster 2,
+batches them, and pushes to Apache Druid via its HTTP indexing service API.
 
 Designed to run on an EC2 Auto Scaling Group. Scaling is driven by
 consumer lag CloudWatch metrics published by this process.
 
-Architecture: Kafka Cluster 1 -> [EC2 ASG Consumer Fleet] -> Kafka Cluster 2 -> Druid
+Architecture: Flink → MSK Cluster 2 (druid-ingestion-events) → [EC2 ASG Consumer Fleet] → Druid
 """
 
 import json
@@ -18,13 +17,14 @@ import signal
 import sys
 import threading
 import time
+import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import boto3
-from confluent_kafka import Consumer, KafkaError, KafkaException, Producer
+from confluent_kafka import Consumer, KafkaError, KafkaException
 from confluent_kafka.admin import AdminClient
 
 logging.basicConfig(
@@ -38,13 +38,19 @@ logger = logging.getLogger("pipeline4_kafka_consumer_autoscaling")
 class ConsumerConfig:
     """Configuration for the Kafka consumer fleet."""
 
-    source_bootstrap_servers: str = field(default_factory=lambda: os.environ["MSK_BOOTSTRAP"])
-    target_bootstrap_servers: str = field(default_factory=lambda: os.environ["MSK_BOOTSTRAP_2"])
-    source_topics: list[str] = field(
-        default_factory=lambda: ["orders", "users", "menu", "promo"]
-    )
-    target_topic: str = "druid-ingestion-events"
+    # MSK Cluster 2 — receives enriched events written by Flink
+    source_bootstrap_servers: str = field(default_factory=lambda: os.environ["MSK_BOOTSTRAP_2"])
+    source_topic: str = "druid-ingestion-events"
     consumer_group: str = "ec2-druid-feeder"
+
+    # Druid indexing service endpoint
+    druid_indexer_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "DRUID_INDEXER_URL", "http://druid-router.zomato-data.internal:8888"
+        )
+    )
+    druid_datasource: str = "zomato_realtime_events"
+
     batch_size: int = 5000
     flush_interval_ms: int = 1000
     poll_timeout_seconds: float = 1.0
@@ -57,8 +63,6 @@ class ConsumerConfig:
 def _get_instance_id() -> str:
     """Retrieve the EC2 instance ID from IMDS v2."""
     try:
-        import urllib.request
-
         token_req = urllib.request.Request(
             "http://169.254.169.254/latest/api/token",
             headers={"X-aws-ec2-metadata-token-ttl-seconds": "300"},
@@ -130,42 +134,28 @@ class ConsumerLagMonitor:
                 }
             )
 
+            metadata = consumer.list_topics(self.config.source_topic, timeout=10)
             total_lag = 0
-            topic_lags: dict[str, int] = {}
 
-            for topic in self.config.source_topics:
-                metadata = consumer.list_topics(topic, timeout=10)
-                if topic not in metadata.topics:
-                    continue
-
-                partitions = metadata.topics[topic].partitions
-                topic_lag = 0
-
+            if self.config.source_topic in metadata.topics:
+                partitions = metadata.topics[self.config.source_topic].partitions
                 for partition_id in partitions:
                     from confluent_kafka import TopicPartition
 
-                    tp = TopicPartition(topic, partition_id)
-
-                    # Get committed offset
+                    tp = TopicPartition(self.config.source_topic, partition_id)
                     committed = consumer.committed([tp], timeout=10)
                     committed_offset = committed[0].offset if committed[0].offset >= 0 else 0
-
-                    # Get high watermark
                     low, high = consumer.get_watermark_offsets(tp, timeout=10)
-                    partition_lag = max(0, high - committed_offset)
-                    topic_lag += partition_lag
-
-                topic_lags[topic] = topic_lag
-                total_lag += topic_lag
+                    total_lag += max(0, high - committed_offset)
 
             consumer.close()
 
-            # Publish metrics to CloudWatch
             metric_data = [
                 {
                     "MetricName": "ConsumerGroupLag",
                     "Dimensions": [
                         {"Name": "ConsumerGroup", "Value": self.config.consumer_group},
+                        {"Name": "Topic", "Value": self.config.source_topic},
                         {"Name": "InstanceId", "Value": self.config.instance_id},
                     ],
                     "Value": total_lag,
@@ -174,30 +164,12 @@ class ConsumerLagMonitor:
                 },
             ]
 
-            for topic, lag in topic_lags.items():
-                metric_data.append(
-                    {
-                        "MetricName": "ConsumerTopicLag",
-                        "Dimensions": [
-                            {"Name": "ConsumerGroup", "Value": self.config.consumer_group},
-                            {"Name": "Topic", "Value": topic},
-                        ],
-                        "Value": lag,
-                        "Unit": "Count",
-                        "Timestamp": datetime.now(timezone.utc),
-                    }
-                )
-
             self.cloudwatch.put_metric_data(
                 Namespace=self.config.cloudwatch_namespace,
                 MetricData=metric_data,
             )
 
-            logger.info(
-                "Published lag metrics: total_lag=%d, topic_lags=%s",
-                total_lag,
-                topic_lags,
-            )
+            logger.info("Published lag metric: total_lag=%d (topic=%s)", total_lag, self.config.source_topic)
 
         except Exception:
             logger.exception("Error computing consumer lag")
@@ -206,8 +178,9 @@ class ConsumerLagMonitor:
 
 class DruidFeederConsumer:
     """
-    Kafka consumer that reads from source topics, enriches events,
-    and produces to the Druid ingestion topic.
+    Kafka consumer that reads enriched events from MSK Cluster 2
+    (druid-ingestion-events) and pushes batches to Druid via its
+    HTTP indexing service API.
 
     Handles graceful shutdown via SIGTERM/SIGINT for clean ASG lifecycle.
     """
@@ -240,101 +213,42 @@ class DruidFeederConsumer:
             }
         )
 
-        self.producer = Producer(
-            {
-                "bootstrap.servers": config.target_bootstrap_servers,
-                "acks": "all",
-                "retries": 5,
-                "retry.backoff.ms": 200,
-                "batch.size": 65536,
-                "linger.ms": 10,
-                "buffer.memory": 67108864,
-                "compression.type": "lz4",
-                "max.in.flight.requests.per.connection": 5,
-                "enable.idempotence": True,
-                "security.protocol": "SASL_SSL",
-                "sasl.mechanism": "AWS_MSK_IAM",
-                "sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
-                "sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler",
-            }
-        )
-
         self.lag_monitor = ConsumerLagMonitor(config)
 
-    def _enrich_event(self, raw_event: dict[str, Any], source_topic: str) -> dict[str, Any]:
-        """
-        Enrich the raw Kafka event with metadata needed by Druid.
-        Normalizes the event structure across different source topics.
-        """
-        enriched = {
-            "event_id": raw_event.get("event_id") or raw_event.get("order_id") or raw_event.get("id"),
-            "event_type": raw_event.get("event_type", source_topic),
-            "source": source_topic,
-            "user_id": raw_event.get("user_id"),
-            "session_id": raw_event.get("session_id"),
-            "event_timestamp": raw_event.get("event_timestamp")
-            or raw_event.get("order_timestamp")
-            or raw_event.get("updated_at")
-            or datetime.now(timezone.utc).isoformat(),
-            "city": raw_event.get("city"),
-            "order_id": raw_event.get("order_id"),
-            "restaurant_id": raw_event.get("restaurant_id"),
-            "total_amount": raw_event.get("total_amount"),
-            "delivery_time_minutes": raw_event.get("delivery_time_minutes"),
-            "page_name": raw_event.get("page_name"),
-            "action": raw_event.get("action"),
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
-            "ingestion_instance": self.config.instance_id,
-        }
-
-        # Preserve nested structures for Druid flattenSpec
-        if "device" in raw_event:
-            enriched["device"] = raw_event["device"]
-        if "location" in raw_event:
-            enriched["location"] = raw_event["location"]
-        if "properties" in raw_event:
-            enriched["properties"] = raw_event["properties"]
-
-        return enriched
-
-    def _delivery_callback(self, err, msg) -> None:
-        """Callback for produced message delivery confirmation."""
-        if err is not None:
-            self._stats["produce_errors"] += 1
-            logger.error("Message delivery failed: %s", err)
-        else:
-            self._stats["produced"] += 1
+    def _push_to_druid(self, batch: list[dict[str, Any]]) -> None:
+        """Push a batch of events to Druid via the HTTP indexing service API."""
+        payload = json.dumps(batch, default=str).encode("utf-8")
+        url = (
+            f"{self.config.druid_indexer_url}/druid/v2/datasources/"
+            f"{self.config.druid_datasource}/insertEvents"
+        )
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                status = resp.status
+                if status not in (200, 201):
+                    raise RuntimeError(f"Druid returned HTTP {status}")
+            self._stats["druid_batches_pushed"] += 1
+            logger.info("Pushed %d events to Druid datasource %s", len(batch), self.config.druid_datasource)
+        except Exception:
+            self._stats["druid_errors"] += 1
+            logger.exception("Failed to push batch to Druid (%d events)", len(batch))
+            raise
 
     def _flush_batch(self) -> None:
-        """Flush the accumulated batch to the target Kafka topic."""
+        """Flush the accumulated batch to Druid."""
         if not self._batch:
             return
 
         batch_size = len(self._batch)
-        logger.info("Flushing batch of %d events to %s", batch_size, self.config.target_topic)
+        logger.info("Flushing batch of %d events to Druid", batch_size)
 
-        for event in self._batch:
-            try:
-                key = event.get("user_id", "").encode("utf-8") if event.get("user_id") else None
-                value = json.dumps(event, default=str).encode("utf-8")
-                self.producer.produce(
-                    topic=self.config.target_topic,
-                    key=key,
-                    value=value,
-                    callback=self._delivery_callback,
-                )
-            except BufferError:
-                logger.warning("Producer buffer full, flushing and retrying")
-                self.producer.flush(timeout=10)
-                self.producer.produce(
-                    topic=self.config.target_topic,
-                    key=key,
-                    value=value,
-                    callback=self._delivery_callback,
-                )
-
-        self.producer.flush(timeout=30)
-        self._stats["batches_flushed"] += 1
+        self._push_to_druid(self._batch)
         self._batch.clear()
         self._last_flush_time = time.monotonic()
 
@@ -350,29 +264,28 @@ class DruidFeederConsumer:
     def _log_stats(self) -> None:
         """Log processing statistics."""
         logger.info(
-            "Consumer stats: consumed=%d, produced=%d, errors=%d, batches=%d",
+            "Consumer stats: consumed=%d, druid_batches=%d, druid_errors=%d, parse_errors=%d",
             self._stats["consumed"],
-            self._stats["produced"],
-            self._stats["produce_errors"],
-            self._stats["batches_flushed"],
+            self._stats["druid_batches_pushed"],
+            self._stats["druid_errors"],
+            self._stats["parse_errors"],
         )
 
     def start(self) -> None:
-        """Start consuming and producing events."""
+        """Start consuming from MSK Cluster 2 and feeding Druid."""
         self._running = True
 
-        # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
 
         logger.info(
-            "Starting Druid feeder consumer: source_topics=%s, target_topic=%s, instance=%s",
-            self.config.source_topics,
-            self.config.target_topic,
+            "Starting Druid feeder consumer: source_topic=%s (Cluster 2), druid_url=%s, instance=%s",
+            self.config.source_topic,
+            self.config.druid_indexer_url,
             self.config.instance_id,
         )
 
-        self.consumer.subscribe(self.config.source_topics)
+        self.consumer.subscribe([self.config.source_topic])
         self.lag_monitor.start()
 
         stats_interval = 60
@@ -395,10 +308,8 @@ class DruidFeederConsumer:
                     continue
 
                 try:
-                    raw_event = json.loads(msg.value().decode("utf-8"))
-                    source_topic = msg.topic()
-                    enriched = self._enrich_event(raw_event, source_topic)
-                    self._batch.append(enriched)
+                    event = json.loads(msg.value().decode("utf-8"))
+                    self._batch.append(event)
                     self._stats["consumed"] += 1
                 except (json.JSONDecodeError, UnicodeDecodeError) as e:
                     self._stats["parse_errors"] += 1
@@ -414,7 +325,6 @@ class DruidFeederConsumer:
                 if self._should_flush():
                     self._flush_batch()
 
-                # Periodically log stats
                 if time.monotonic() - last_stats_time >= stats_interval:
                     self._log_stats()
                     last_stats_time = time.monotonic()
@@ -437,7 +347,6 @@ class DruidFeederConsumer:
         self._flush_batch()
         self.lag_monitor.stop()
         self.consumer.close()
-        self.producer.flush(timeout=30)
         self._log_stats()
         logger.info("Consumer shutdown complete")
 
@@ -446,15 +355,12 @@ def main() -> None:
     """Entry point for the EC2 auto-scaling Kafka consumer."""
     config = ConsumerConfig(
         source_bootstrap_servers=os.getenv(
-            "MSK_BOOTSTRAP",
-            "b-1.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
-        ),
-        target_bootstrap_servers=os.getenv(
             "MSK_BOOTSTRAP_2",
             "b-1.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.zomato-msk-rt.xxxxx.c2.kafka.ap-south-1.amazonaws.com:9098",
         ),
-        source_topics=os.getenv("SOURCE_TOPICS", "orders,users,menu,promo").split(","),
-        target_topic=os.getenv("TARGET_TOPIC", "druid-ingestion-events"),
+        source_topic=os.getenv("SOURCE_TOPIC", "druid-ingestion-events"),
+        druid_indexer_url=os.getenv("DRUID_INDEXER_URL", "http://druid-router.zomato-data.internal:8888"),
+        druid_datasource=os.getenv("DRUID_DATASOURCE", "zomato_realtime_events"),
         consumer_group=os.getenv("CONSUMER_GROUP", "ec2-druid-feeder"),
         batch_size=int(os.getenv("BATCH_SIZE", "5000")),
         flush_interval_ms=int(os.getenv("FLUSH_INTERVAL_MS", "1000")),
