@@ -10,7 +10,7 @@ Produces: zomato_data_platform_architecture.png
 
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.analytics import Athena, ManagedStreamingForKafka
-from diagrams.aws.compute import EC2, EC2AutoScaling, ECS, EMR
+from diagrams.aws.compute import EC2, EC2AutoScaling, ECS, EMR, Lambda
 from diagrams.aws.database import Aurora, Dynamodb
 from diagrams.aws.integration import MQ
 from diagrams.aws.storage import S3
@@ -103,7 +103,7 @@ def main():
         # PIPELINE 3 - DYNAMODB STREAMS
         # ================================================================
         with Cluster("Pipeline-3: DynamoDB Processing"):
-            ecs_stream = ECS("ECS Multi-AZ\n(Stream to S3)")
+            lambda_stream = Lambda("AWS Lambda\n(Stream to S3)")
             s3_json = S3("S3 Raw\n(JSON)")
             emr_spark = EMR("Apache Spark\n(Amazon EMR)")
             s3_curated_p3 = S3("S3 Curated\n(ORC)")
@@ -171,9 +171,9 @@ def main():
         # Flink CDC → Iceberg → S3
         flink_cdc >> Edge(label="Iceberg\n+ ORC") >> s3_iceberg
 
-        # Pipeline 3: DynamoDB → ECS → S3 JSON → Spark → S3 ORC
-        dynamodb >> Edge(label="DynamoDB\nStream") >> ecs_stream
-        ecs_stream >> Edge(label="JSON") >> s3_json
+        # Pipeline 3: DynamoDB → Lambda → S3 JSON → Spark → S3 ORC
+        dynamodb >> Edge(label="DynamoDB\nStream") >> lambda_stream
+        lambda_stream >> Edge(label="JSON") >> s3_json
         s3_json >> emr_spark
         emr_spark >> Edge(label="ORC") >> s3_curated_p3
 

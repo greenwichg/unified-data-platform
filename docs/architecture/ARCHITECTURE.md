@@ -19,7 +19,7 @@
 
 ### Data Pipeline-3: DynamoDB Streams
 - **Source**: DynamoDB with streams enabled
-- **Ingestion**: ECS Multi-AZ service streams records to S3 as JSON (real-time micro-batches)
+- **Ingestion**: AWS Lambda function triggered by DynamoDB Streams, writes records to S3 as JSON (real-time micro-batches)
 - **Processing**: Apache Spark on Amazon EMR reads JSON, deduplicates, builds sessions
 - **Sink**: S3 in ORC format
 
