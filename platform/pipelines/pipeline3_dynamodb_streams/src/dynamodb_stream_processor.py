@@ -111,10 +111,10 @@ class DynamoDBStreamToS3:
         return s3_key
 
 
-def lambda_handler(event: dict, context: object) -> dict:
-    """AWS Lambda handler for DynamoDB Streams events.
+def process_stream_event(event: dict, context: object) -> dict:
+    """Entry point for DynamoDB Streams events.
 
-    Triggered by DynamoDB Streams, processes records, and writes to S3.
+    Receives stream records, processes them, and writes to S3 as JSON.
     """
     s3_bucket = os.environ.get("S3_BUCKET", "zomato-data-platform-dev-raw-data-lake")
     processor = DynamoDBStreamToS3(s3_bucket)

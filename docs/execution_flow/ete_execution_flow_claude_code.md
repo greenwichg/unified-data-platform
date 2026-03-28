@@ -277,7 +277,7 @@ DynamoDB ───────────────────────�
      │ (continuous streams → hourly Spark)
      ▼
   Pipeline 3
-  ECS → S3 JSON → Spark EMR → ORC
+  Streams → S3 JSON → Spark EMR → ORC
      │
      ▼
   S3 Data Lake (ORC) ──→ Glue Catalog refresh ──→ Athena queryable
