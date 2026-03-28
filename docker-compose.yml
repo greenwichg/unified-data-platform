@@ -291,6 +291,41 @@ services:
                python /scripts/seed_data.py"
     restart: "no"
 
+  # ==================== Real-time Producer (opt-in via --profile produce) ==
+  # Usage:
+  #   docker-compose --profile produce up producer          # 5 events/sec (default)
+  #   PRODUCE_RATE=23 docker-compose --profile produce up producer   # ~2M orders/day
+  #   PRODUCE_RATE=10 PRODUCE_DURATION=600 docker-compose --profile produce up producer
+  #   PRODUCE_TARGET=kafka docker-compose --profile produce up producer
+  producer:
+    image: python:3.11-slim
+    profiles: [produce]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DB: zomato
+      DYNAMODB_ENDPOINT: ""
+      KAFKA_BOOTSTRAP: kafka-1:29092
+      PRODUCE_RATE: ${PRODUCE_RATE:-5}
+      PRODUCE_TARGET: ${PRODUCE_TARGET:-all}
+      PRODUCE_DURATION: ${PRODUCE_DURATION:-}
+    volumes:
+      - ./infra/scripts:/scripts
+    command: >
+      bash -c "pip install pymysql confluent-kafka --quiet &&
+               python /scripts/produce_realtime.py
+                 --target $${PRODUCE_TARGET}
+                 --rate $${PRODUCE_RATE}
+                 $${PRODUCE_DURATION:+--duration $${PRODUCE_DURATION}}"
+    restart: on-failure
+
 volumes:
   mysql_data:
   minio_data:
