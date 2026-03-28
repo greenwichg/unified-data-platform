@@ -146,8 +146,11 @@ druid:
     target_rows_per_segment: 5000000
 
 # ----- EC2 Auto-Scaling Kafka Consumer (Druid feeder) -----
+# Reads enriched events from MSK Cluster 2 (druid-ingestion-events),
+# written there by Flink (Path B), and pushes batches to Druid HTTP API.
+# Architecture: Flink → MSK Cluster 2 → EC2 fleet → Druid
 ec2_consumer:
-  description: "Auto-scaling EC2 Kafka consumer fleet that feeds Druid"
+  description: "Auto-scaling EC2 Kafka consumer fleet that feeds Druid from MSK Cluster 2"
   ami_id: ${KAFKA_CONSUMER_AMI:ami-0abcdef1234567890}
   instance_type: c6g.xlarge
   key_pair: zomato-data-platform-prod
@@ -178,12 +181,10 @@ ec2_consumer:
 
   consumer_config:
     group_id: ec2-druid-feeder
-    topics:
-      - orders
-      - users
-      - menu
-      - promo
-    target_topic: druid-ingestion-events
+    source_cluster: cluster_2                # reads from MSK Cluster 2
+    source_topic: druid-ingestion-events     # written by Flink (Path B)
+    druid_indexer_url: ${DRUID_INDEXER_URL:http://druid-router.zomato-data.internal:8888}
+    druid_datasource: zomato_realtime_events
     batch_size: 5000
     flush_interval_ms: 1000
 

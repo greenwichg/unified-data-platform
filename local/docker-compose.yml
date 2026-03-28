@@ -116,7 +116,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       KAFKA_BOOTSTRAP: kafka-1:29092
     volumes:
-      - ./infra/scripts:/scripts
+      - ./scripts:/scripts
     entrypoint: ["sh", "/scripts/register-connectors.sh"]
     restart: "no"
 
@@ -140,7 +140,7 @@ services:
       - --enforce-gtid-consistency=ON
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./infra/scripts/mysql-init:/docker-entrypoint-initdb.d
+      - ./configs/mysql-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
       interval: 10s
@@ -183,8 +183,8 @@ services:
     ports:
       - "8085:8080"
     volumes:
-      - ./infra/docker/athena/catalog:/etc/trino/catalog
-      - ./infra/docker/athena/config.properties:/etc/trino/config.properties
+      - ../infra/docker/athena/catalog:/etc/trino/catalog
+      - ../infra/docker/athena/config.properties:/etc/trino/config.properties
 
   # ==================== Real-time OLAP ====================
   druid-coordinator:
@@ -225,7 +225,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: Asia/Kolkata
     volumes:
-      - ./platform/airflow/dags:/opt/airflow/dags
+      - ../platform/airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
     command: webserver
 
@@ -239,7 +239,7 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     volumes:
-      - ./platform/airflow/dags:/opt/airflow/dags
+      - ../platform/airflow/dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
     command: scheduler
 

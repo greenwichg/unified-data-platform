@@ -105,6 +105,38 @@ FLINK_SQL_STATEMENTS = {
             'scan.startup.mode' = 'earliest-offset'
         );
     """,
+    "create_kafka_promo_source": """
+        CREATE TABLE kafka_promo_cdc (
+            promo_id STRING,
+            code STRING,
+            description STRING,
+            discount_type STRING,
+            discount_value DECIMAL(10, 2),
+            min_order_value DECIMAL(10, 2),
+            max_discount DECIMAL(10, 2),
+            applicable_cities ARRAY<STRING>,
+            valid_from TIMESTAMP(3),
+            valid_until TIMESTAMP(3),
+            is_active BOOLEAN,
+            usage_limit INT,
+            times_used INT,
+            updated_at TIMESTAMP(3),
+            op_type STRING,
+            WATERMARK FOR updated_at AS updated_at - INTERVAL '5' SECOND
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = 'promo',
+            'properties.bootstrap.servers' = '{kafka_bootstrap}',
+            'properties.group.id' = 'flink-cdc-promo',
+            'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'AWS_MSK_IAM',
+            'properties.sasl.jaas.config' = 'software.amazon.msk.auth.iam.IAMLoginModule required;',
+            'properties.sasl.client.callback.handler.class' = 'software.amazon.msk.auth.iam.IAMClientCallbackHandler',
+            'format' = 'avro-confluent',
+            'avro-confluent.url' = '{schema_registry_url}',
+            'scan.startup.mode' = 'earliest-offset'
+        );
+    """,
     "create_iceberg_orders_sink": """
         CREATE TABLE iceberg_orders (
             order_id STRING,
@@ -162,6 +194,36 @@ FLINK_SQL_STATEMENTS = {
             'write.upsert.enabled' = 'true'
         );
     """,
+    "create_iceberg_promo_sink": """
+        CREATE TABLE iceberg_promotions (
+            promo_id STRING,
+            code STRING,
+            description STRING,
+            discount_type STRING,
+            discount_value DECIMAL(10, 2),
+            min_order_value DECIMAL(10, 2),
+            max_discount DECIMAL(10, 2),
+            valid_from TIMESTAMP(3),
+            valid_until TIMESTAMP(3),
+            is_active BOOLEAN,
+            usage_limit INT,
+            times_used INT,
+            updated_at TIMESTAMP(3),
+            op_type STRING,
+            processing_time TIMESTAMP(3),
+            dt STRING,
+            PRIMARY KEY (promo_id) NOT ENFORCED
+        ) PARTITIONED BY (dt) WITH (
+            'connector' = 'iceberg',
+            'catalog-name' = 'zomato_iceberg',
+            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
+            'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
+            'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
+            'format-version' = '2',
+            'write.format.default' = 'orc',
+            'write.upsert.enabled' = 'true'
+        );
+    """,
     "insert_orders": """
         INSERT INTO iceberg_orders
         SELECT
@@ -197,6 +259,27 @@ FLINK_SQL_STATEMENTS = {
             CURRENT_TIMESTAMP AS processing_time,
             DATE_FORMAT(updated_at, 'yyyy-MM-dd') AS dt
         FROM kafka_users_cdc;
+    """,
+    "insert_promo": """
+        INSERT INTO iceberg_promotions
+        SELECT
+            promo_id,
+            code,
+            description,
+            discount_type,
+            discount_value,
+            min_order_value,
+            max_discount,
+            valid_from,
+            valid_until,
+            is_active,
+            usage_limit,
+            times_used,
+            updated_at,
+            op_type,
+            CURRENT_TIMESTAMP AS processing_time,
+            DATE_FORMAT(updated_at, 'yyyy-MM-dd') AS dt
+        FROM kafka_promo_cdc;
     """,
     "complex_event_order_velocity": """
         CREATE VIEW order_velocity AS
