@@ -21,7 +21,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 - **Druid**: 20B events/week, 8M queries/week, millisecond response times
 
 ### Dashboards
-- Apache Superset, Redash, Jupyter Notebooks
+- Redash, Jupyter Notebooks
 
 ## Project Structure
 
@@ -65,7 +65,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 | Schema Registry | AWS Glue Schema Registry | Schema management for streaming data |
 | Real-time OLAP | Apache Druid | Millisecond analytics |
 | Orchestration | Apache Airflow | Pipeline scheduling |
-| Dashboards | Superset, Redash, Jupyter | Visualization |
+| Dashboards | Redash, Jupyter | Visualization |
 
 ## Quick Start (Local Development)
 
