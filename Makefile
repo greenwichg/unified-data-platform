@@ -18,7 +18,11 @@
 #   clean          - Remove build artifacts, caches, and temp files
 #   help           - Show this help message
 #   seed           - One-time bulk seed (MySQL + DynamoDB + Kafka)
-#   produce        - Continuous real-time producer (MySQL + DynamoDB + Kafka)
+#   produce        - Continuous producer, all targets, 5 events/sec
+#   produce-fast   - Continuous producer, all targets, 23 events/sec (~2M orders/day)
+#   produce-timed  - Continuous producer, 10/sec for 10 minutes
+#   produce-kafka  - Kafka only, 5 events/sec
+#   produce-docker - Run producer in a Docker container (docker-compose profile)
 #   dev-setup      - Start local stack and seed data in one command
 # ==============================================================================
 
@@ -28,6 +32,8 @@
         migrate-athena msk-topics ops-athena-health \
         seed seed-mysql seed-dynamodb seed-kafka \
         produce produce-mysql produce-dynamodb produce-kafka \
+        produce-fast produce-kafka-fast produce-timed \
+        produce-docker produce-docker-fast produce-docker-kafka produce-docker-stop \
         dev-setup
 
 PYTHON ?= python3
@@ -221,17 +227,39 @@ seed-dynamodb:  ## Seed DynamoDB only
 seed-kafka:  ## Seed Kafka topics only
 	$(PYTHON) infra/scripts/seed_data.py --target kafka
 
-produce:  ## Produce real-time events to all targets at 5 events/sec (runs forever)
+produce:  ## Produce to all targets at 5 events/sec (runs forever)
 	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 5
 
-produce-mysql:  ## Produce real-time events to MySQL only
-	$(PYTHON) infra/scripts/produce_realtime.py --target mysql
+produce-fast:  ## Produce to all targets at 23 events/sec (~2M orders/day)
+	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 23
 
-produce-dynamodb:  ## Produce real-time events to DynamoDB only
-	$(PYTHON) infra/scripts/produce_realtime.py --target dynamodb
+produce-timed:  ## Produce to all targets at 10 events/sec for 10 minutes
+	$(PYTHON) infra/scripts/produce_realtime.py --target all --rate 10 --duration 600
 
-produce-kafka:  ## Produce real-time events to Kafka only
-	$(PYTHON) infra/scripts/produce_realtime.py --target kafka
+produce-mysql:  ## Produce real-time events to MySQL only (5/sec)
+	$(PYTHON) infra/scripts/produce_realtime.py --target mysql --rate 5
+
+produce-dynamodb:  ## Produce real-time events to DynamoDB only (5/sec)
+	$(PYTHON) infra/scripts/produce_realtime.py --target dynamodb --rate 5
+
+produce-kafka:  ## Produce real-time events to Kafka only (5/sec)
+	$(PYTHON) infra/scripts/produce_realtime.py --target kafka --rate 5
+
+produce-kafka-fast:  ## Produce to Kafka only at 23 events/sec (~2M orders/day)
+	$(PYTHON) infra/scripts/produce_realtime.py --target kafka --rate 23
+
+# docker-compose profile shortcuts (runs producer inside a container)
+produce-docker:  ## Start producer container via docker-compose (5/sec, all targets)
+	$(DOCKER_COMPOSE) --profile produce up producer
+
+produce-docker-fast:  ## Start producer container at 23 events/sec (~2M orders/day)
+	PRODUCE_RATE=23 $(DOCKER_COMPOSE) --profile produce up producer
+
+produce-docker-kafka:  ## Start producer container targeting Kafka only
+	PRODUCE_TARGET=kafka $(DOCKER_COMPOSE) --profile produce up producer
+
+produce-docker-stop:  ## Stop the producer container
+	$(DOCKER_COMPOSE) --profile produce stop producer
 
 dev-setup: docker-up  ## Start local stack and seed all data sources
 	@echo "Waiting for services to be ready..."
