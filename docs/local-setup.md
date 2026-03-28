@@ -4,18 +4,18 @@ This guide walks through setting up the full Zomato Data Platform on your local 
 
 ## How Local Maps to Production
 
-| Local Service | Production Equivalent |
-|---|---|
-| MySQL 8.0 (Docker) | Amazon Aurora MySQL |
-| Kafka + ZooKeeper (Docker) | Amazon MSK |
-| Confluent Schema Registry | AWS Glue Schema Registry |
-| Debezium Kafka Connect | Debezium on ECS Fargate |
-| Apache Flink (Docker) | Amazon Managed Flink |
-| Trino (Docker) | Amazon Athena (Trino-based, serverless) |
-| Apache Druid (Docker) | Apache Druid on EC2 R8g |
-| MinIO (Docker) | Amazon S3 |
-| Apache Airflow (Docker) | Amazon MWAA |
-| Apache Superset (Docker) | Apache Superset on ECS Fargate |
+| Local Service | Production Equivalent | Docker containers |
+|---|---|---|
+| MySQL 8.0 (Docker) | Amazon Aurora MySQL | `mysql` |
+| Kafka + ZooKeeper (Docker) | Amazon MSK | `zookeeper`, `kafka-1`, `kafka-2` |
+| Confluent Schema Registry | AWS Glue Schema Registry | `schema-registry` |
+| Debezium Kafka Connect | Debezium on ECS Fargate | `kafka-connect`, `connect-init` |
+| Apache Flink (Docker) | Amazon Managed Flink | `flink-jobmanager`, `flink-taskmanager` |
+| Trino (Docker) | Amazon Athena (Trino-based, serverless) | `trino` |
+| Apache Druid (Docker) | Apache Druid on EC2 R8g | `druid-coordinator`, `druid-historical`, `druid-middlemanager`, `druid-broker`, `druid-router` |
+| MinIO (Docker) | Amazon S3 | `minio`, `minio-init` |
+| Apache Airflow (Docker) | Amazon MWAA | `airflow-webserver`, `airflow-scheduler`, `airflow-init` |
+| Apache Superset (Docker) | Apache Superset on ECS Fargate | `superset-init`, `superset` |
 
 ---
 
@@ -179,14 +179,19 @@ make cdc-register
 | **Airflow** | http://localhost:8080 | admin / admin |
 | **Flink UI** | http://localhost:8084 | — |
 | **Trino** | http://localhost:8085 | any username, no password |
-| **Druid Router** | http://localhost:8888 | — |
+| **Druid Console** | http://localhost:8888 | — (via druid-router) |
+| **Druid Coordinator** | http://localhost:8086 | — |
 | **Kafka Connect** | http://localhost:8083 | — |
 | **Schema Registry** | http://localhost:8081 | — |
 | **MinIO Console** | http://localhost:9001 | minioadmin / minioadmin |
-| **Superset** | http://localhost:8088 | — |
+| **Superset** | http://localhost:8088 | admin / admin (auto-configured) |
 | **MySQL** | localhost:3306 | root / rootpass |
 | **Kafka Broker 1** | localhost:9092 | — |
 | **Kafka Broker 2** | localhost:9093 | — |
+
+> **Superset connections** are pre-configured automatically on first startup by `superset-init`: Trino, Druid, and MySQL are available immediately in SQL Lab and the chart builder.
+>
+> **Druid Console UI** is served by `druid-router` at port 8888. The other Druid nodes (coordinator, historical, middlemanager, broker) are internal — you do not access them directly.
 
 ---
 
