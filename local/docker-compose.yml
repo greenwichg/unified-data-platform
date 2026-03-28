@@ -3,6 +3,23 @@
 # Simulates the full production architecture for local testing
 ###############################################################################
 
+# ── Shared Druid environment (used by all 5 Druid nodes) ──────────────────────
+x-druid-env: &druid-env
+  DRUID_COMMON_RUNTIME_PROPERTIES: |
+    druid.zk.service.host=zookeeper
+    druid.zk.paths.base=/druid/local
+    druid.metadata.storage.type=derby
+    druid.metadata.storage.connector.connectURI=jdbc:derby://druid-coordinator:1527/var/druid/metadata.db;create=true
+    druid.metadata.storage.connector.createTables=true
+    druid.storage.type=local
+    druid.storage.storageDirectory=/opt/druid/var/druid/segments
+    druid.indexer.logs.type=file
+    druid.indexer.logs.directory=/opt/druid/var/druid/indexing-logs
+    druid.selectors.indexing.serviceName=druid/overlord
+    druid.selectors.coordinator.serviceName=druid/coordinator
+    druid.sql.enable=true
+    druid.extensions.loadList=["druid-kafka-indexing-service","druid-datasketches","druid-histogram","druid-parquet-extensions"]
+
 services:
   # ==================== Message Bus (Local Dev Only) ====================
   # PRODUCTION NOTE: In production, Amazon MSK (with IAM auth) replaces self-hosted
@@ -186,30 +203,85 @@ services:
       - ../infra/docker/athena/catalog:/etc/trino/catalog
       - ../infra/docker/athena/config.properties:/etc/trino/config.properties
 
-  # ==================== Real-time OLAP ====================
+  # ==================== Real-time OLAP (Full 5-node Druid cluster) ====================
+  # PRODUCTION NOTE: In production, Druid runs on EC2 R8g instances with S3 deep storage
+  # and Aurora MySQL metadata. Locally, Derby + local filesystem replaces both.
+  #
+  # Node roles:
+  #   coordinator   — segment assignment and compaction scheduling
+  #   historical    — stores and serves immutable ORC segments
+  #   middlemanager — runs Kafka ingestion tasks (peon processes)
+  #   broker        — routes queries and merges partial results
+  #   router        — unified API gateway + Druid Console UI (port 8888)
+
   druid-coordinator:
     image: apache/druid:29.0.0
     hostname: druid-coordinator
+    depends_on:
+      - zookeeper
     ports:
       - "8086:8081"
     command: coordinator
     environment:
-      DRUID_COMMON_RUNTIME_PROPERTIES: |
-        druid.metadata.storage.type=derby
-        druid.metadata.storage.connector.connectURI=jdbc:derby://localhost:1527/var/druid/metadata.db;create=true
-        druid.storage.type=local
-        druid.storage.storageDirectory=/opt/druid/var/druid/segments
-        druid.indexer.logs.type=file
-        druid.indexer.logs.directory=/opt/druid/var/druid/indexing-logs
+      <<: *druid-env
+    volumes:
+      - druid_data:/opt/druid/var/druid/segments
+      - druid_logs:/opt/druid/var/druid/indexing-logs
+
+  druid-historical:
+    image: apache/druid:29.0.0
+    hostname: druid-historical
+    depends_on:
+      - zookeeper
+      - druid-coordinator
+    command: historical
+    environment:
+      <<: *druid-env
+    volumes:
+      - druid_data:/opt/druid/var/druid/segments
+      - druid_logs:/opt/druid/var/druid/indexing-logs
+
+  druid-middlemanager:
+    image: apache/druid:29.0.0
+    hostname: druid-middlemanager
+    depends_on:
+      - zookeeper
+      - druid-coordinator
+    command: middleManager
+    environment:
+      <<: *druid-env
+    volumes:
+      - druid_data:/opt/druid/var/druid/segments
+      - druid_logs:/opt/druid/var/druid/indexing-logs
 
   druid-broker:
     image: apache/druid:29.0.0
     hostname: druid-broker
+    depends_on:
+      - zookeeper
+      - druid-coordinator
+    command: broker
+    environment:
+      <<: *druid-env
+    volumes:
+      - druid_data:/opt/druid/var/druid/segments
+      - druid_logs:/opt/druid/var/druid/indexing-logs
+
+  druid-router:
+    image: apache/druid:29.0.0
+    hostname: druid-router
+    depends_on:
+      - zookeeper
+      - druid-coordinator
+      - druid-broker
     ports:
       - "8888:8888"
-    command: broker
-    depends_on:
-      - druid-coordinator
+    command: router
+    environment:
+      <<: *druid-env
+    volumes:
+      - druid_data:/opt/druid/var/druid/segments
+      - druid_logs:/opt/druid/var/druid/indexing-logs
 
   # ==================== Orchestration ====================
   airflow-webserver:
@@ -256,16 +328,35 @@ services:
                --firstname Admin --lastname User --role Admin --email admin@zomato.com"
 
   # ==================== Dashboards ====================
+  # superset-init runs first: initialises the DB, creates the admin user,
+  # and pre-configures connections to Trino, Druid, and MySQL.
+  superset-init:
+    image: apache/superset:3.1.0
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-local-dev-secret-change-in-prod}"
+    depends_on:
+      - trino
+      - druid-router
+      - mysql
+    volumes:
+      - superset_home:/app/superset_home
+      - ./scripts/superset-init.sh:/superset-init.sh
+    command: ["bash", "/superset-init.sh"]
+    restart: "no"
+
   superset:
     image: apache/superset:3.1.0
     hostname: superset
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
     ports:
       - "8088:8088"
     environment:
-      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-change-me-in-production}"
-    depends_on:
-      - trino
-      - druid-broker
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-local-dev-secret-change-in-prod}"
+    volumes:
+      - superset_home:/app/superset_home
+    command: ["superset", "run", "--host", "0.0.0.0", "--port", "8088", "--with-threads", "--reload"]
 
   # ==================== Object Storage (S3 mock) ====================
   minio:
@@ -357,3 +448,6 @@ volumes:
   mysql_data:
   minio_data:
   airflow_logs:
+  druid_data:
+  druid_logs:
+  superset_home:
