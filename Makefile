@@ -22,7 +22,8 @@
 .PHONY: build test test-unit test-int test-e2e lint format \
         deploy-dev deploy-staging deploy-prod \
         docker-build docker-up docker-down clean help \
-        migrate-athena msk-topics ops-athena-health
+        migrate-athena msk-topics ops-athena-health \
+        seed seed-mysql seed-dynamodb seed-kafka dev-setup
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -202,6 +203,23 @@ migrate-trino:  ## Run Trino/Iceberg schema migrations (local dev only)
 migrate-status:  ## Show migration status for all targets
 	$(PYTHON) scripts/migration/schema_migration.py status --target aurora --env $(ENV)
 	$(PYTHON) scripts/migration/schema_migration.py status --target trino --env $(ENV)
+
+seed:  ## Seed all data sources (MySQL + DynamoDB + Kafka)
+	$(PYTHON) infra/scripts/seed_data.py --target all
+
+seed-mysql:  ## Seed Aurora MySQL only
+	$(PYTHON) infra/scripts/seed_data.py --target mysql
+
+seed-dynamodb:  ## Seed DynamoDB only
+	$(PYTHON) infra/scripts/seed_data.py --target dynamodb
+
+seed-kafka:  ## Seed Kafka topics only
+	$(PYTHON) infra/scripts/seed_data.py --target kafka
+
+dev-setup: docker-up  ## Start local stack and seed all data sources
+	@echo "Waiting for services to be ready..."
+	@sleep 15
+	@$(MAKE) seed
 
 kafka-topics:  ## Create Kafka topics (local dev)
 	bash scripts/create-kafka-topics.sh
