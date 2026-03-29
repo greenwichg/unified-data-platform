@@ -163,6 +163,18 @@ deploy-prod:  ## Deploy to production environment
 deploy-plan-%:  ## Show Terraform plan for an environment (e.g., make deploy-plan-dev)
 	bash infra/scripts/deploy.sh $* plan
 
+destroy-dev:  ## Destroy dev environment (type 'yes-destroy-dev' when prompted)
+	bash infra/scripts/deploy.sh dev destroy
+
+destroy-staging:  ## Destroy staging environment (type 'yes-destroy-staging' when prompted)
+	bash infra/scripts/deploy.sh staging destroy
+
+destroy-prod:  ## Destroy production environment (type 'yes-destroy-prod' when prompted)
+	@echo "========================================="
+	@echo "  WARNING: DESTROYING PRODUCTION"
+	@echo "========================================="
+	bash infra/scripts/deploy.sh prod destroy
+
 # ==============================================================================
 # Docker
 # ==============================================================================
