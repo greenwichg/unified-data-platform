@@ -156,47 +156,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 | Orchestration | Apache Airflow | Pipeline scheduling |
 | Dashboards | Amazon QuickSight (or any BI tool) | Visualization |
 
-## Quick Start (Local Development)
+## Setup Guides
 
-```bash
-# Start full local stack and seed all data automatically
-make dev-setup
-
-# Or start and seed separately
-make docker-up   # also triggers seed service automatically via docker-compose
-make seed        # re-seed manually at any time
-
-# Seed startup flow (automatic on docker-compose up)
-# docker-compose up
-#     ├── mysql (healthy?) ──┐
-#     └── kafka-1 (healthy?) ┤
-#                            └── seed (runs once, exits)
-
-# Seed individual sources
-make seed-mysql
-make seed-dynamodb
-make seed-kafka
-
-# Produce continuous real-time events (runs forever until Ctrl+C)
-make produce                          # all targets at 5 events/sec
-make produce-kafka                    # Kafka only
-make produce-mysql                    # MySQL only
-make produce-dynamodb                 # DynamoDB only
-python infra/scripts/produce_realtime.py --rate 23 --duration 3600  # 2M orders/day for 1h
-
-# Run Pipeline 1 (Batch ETL)
-cd platform/pipelines/pipeline1_batch_etl && python src/batch_etl.py
-
-# Run Pipeline 4 (Real-time Events)
-cd platform/pipelines/pipeline4_realtime_events && python src/event_producer.py
-```
-
-## Deployment
-
-```bash
-# Initialize Terraform
-cd infra/terraform/environments/dev
-terraform init
-terraform plan
-terraform apply
-```
+- **Local development** → [docs/local-setup.md](docs/local-setup.md)
+- **Production deployment** → [docs/production-setup.md](docs/production-setup.md)
