@@ -70,14 +70,14 @@ module "dynamodb" {
 
 # ===================== Amazon MSK (replacing self-hosted Kafka on EC2) =====================
 module "kafka" {
-  source          = "../../modules/kafka"
-  environment     = var.environment
-  vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnet_ids
-  instance_type   = var.kafka_instance_type
+  source            = "../../modules/kafka"
+  environment       = var.environment
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = module.vpc.private_subnet_ids
+  instance_type     = var.kafka_instance_type
   number_of_brokers = var.kafka_broker_count
-  ebs_volume_size = var.kafka_ebs_volume_size
-  tags            = local.tags
+  ebs_volume_size   = var.kafka_ebs_volume_size
+  tags              = local.tags
 }
 
 # ===================== Amazon MSK Secondary (Pipeline 4 -> Druid ingestion) =====================
@@ -147,22 +147,21 @@ module "emr" {
 # ===================== Athena (serverless, replacing self-hosted Trino on ECS) =====================
 # Glue Data Catalog replaces the self-hosted Hive Metastore.
 module "trino" {
-  source      = "../../modules/athena"
-  environment = var.environment
-  vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.private_subnet_ids
-  tags        = local.tags
+  source        = "../../modules/athena"
+  environment   = var.environment
+  result_bucket = module.s3.processed_bucket_name
+  tags          = local.tags
 }
 
 # ===================== Druid (Real-time OLAP) =====================
 module "druid" {
-  source                             = "../../modules/druid"
-  environment                        = var.environment
-  vpc_id                             = module.vpc.vpc_id
-  subnet_ids                         = module.vpc.private_subnet_ids
-  s3_deep_storage_bucket             = module.s3.raw_bucket_name
-  kafka_secondary_security_group_id  = module.kafka_secondary.security_group_id
-  tags                               = local.tags
+  source                            = "../../modules/druid"
+  environment                       = var.environment
+  vpc_id                            = module.vpc.vpc_id
+  subnet_ids                        = module.vpc.private_subnet_ids
+  s3_deep_storage_bucket            = module.s3.raw_bucket_name
+  kafka_secondary_security_group_id = module.kafka_secondary.security_group_id
+  tags                              = local.tags
 }
 
 # ===================== ECS (Debezium / Services) =====================

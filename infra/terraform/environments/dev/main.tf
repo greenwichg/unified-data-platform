@@ -101,7 +101,7 @@ module "kafka_consumer_fleet" {
   environment                       = var.environment
   vpc_id                            = module.vpc.vpc_id
   subnet_ids                        = module.vpc.private_subnet_ids
-  instance_type                     = "t3.medium"  # dev: scaled down from r8g.large
+  instance_type                     = "t3.medium" # dev: scaled down from r8g.large
   desired_capacity                  = 1
   min_size                          = 1
   max_size                          = 2
@@ -126,8 +126,8 @@ module "flink" {
   s3_checkpoints_bucket   = module.s3.checkpoints_bucket_name
   s3_output_bucket        = module.s3.raw_bucket_name
   runtime_environment     = "FLINK-1_18"
-  auto_scaling_enabled    = false   # dev: disable autoscaling
-  parallelism_override    = 2       # dev: 2 KPUs per app (~$0.22/hr each) vs 8-32 in prod
+  auto_scaling_enabled    = false # dev: disable autoscaling
+  parallelism_override    = 2     # dev: 2 KPUs per app (~$0.22/hr each) vs 8-32 in prod
   tags                    = local.tags
 }
 
@@ -142,31 +142,30 @@ module "emr" {
   master_instance_type = var.emr_master_instance_type
   core_instance_type   = var.emr_core_instance_type
   core_instance_count  = var.emr_core_instance_count
-  use_spot_instances   = true   # dev: use Spot for further savings
+  use_spot_instances   = true # dev: use Spot for further savings
   tags                 = local.tags
 }
 
 # ===================== Athena (serverless, replacing self-hosted Trino on ECS) =====================
 # Glue Data Catalog replaces the self-hosted Hive Metastore.
 module "trino" {
-  source      = "../../modules/athena"
-  environment = var.environment
-  vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.private_subnet_ids
-  tags        = local.tags
+  source        = "../../modules/athena"
+  environment   = var.environment
+  result_bucket = module.s3.processed_bucket_name
+  tags          = local.tags
 }
 
 # ===================== Druid (Real-time OLAP) =====================
 module "druid" {
-  source                             = "../../modules/druid"
-  environment                        = var.environment
-  vpc_id                             = module.vpc.vpc_id
-  subnet_ids                         = module.vpc.private_subnet_ids
-  s3_deep_storage_bucket             = module.s3.raw_bucket_name
-  kafka_secondary_security_group_id  = module.kafka_secondary.security_group_id
-  instance_type_override             = "t3.medium"  # dev: scaled down from r8g fleet
-  node_count_override                = 1            # dev: single node per type
-  tags                               = local.tags
+  source                            = "../../modules/druid"
+  environment                       = var.environment
+  vpc_id                            = module.vpc.vpc_id
+  subnet_ids                        = module.vpc.private_subnet_ids
+  s3_deep_storage_bucket            = module.s3.raw_bucket_name
+  kafka_secondary_security_group_id = module.kafka_secondary.security_group_id
+  instance_type_override            = "t3.medium" # dev: scaled down from r8g fleet
+  node_count_override               = 1           # dev: single node per type
+  tags                              = local.tags
 }
 
 # ===================== ECS (Debezium / Services) =====================
@@ -183,15 +182,15 @@ module "ecs" {
 
 # ===================== Airflow (MWAA) =====================
 module "airflow" {
-  source             = "../../modules/airflow"
-  environment        = var.environment
-  vpc_id             = module.vpc.vpc_id
-  subnet_ids         = module.vpc.private_subnet_ids
-  s3_dags_bucket     = module.s3.airflow_logs_bucket_name
-  environment_class  = "mw1.small"  # dev: scaled down from mw1.large
-  max_workers        = 5
-  min_workers        = 1
-  tags               = local.tags
+  source            = "../../modules/airflow"
+  environment       = var.environment
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = module.vpc.private_subnet_ids
+  s3_dags_bucket    = module.s3.airflow_logs_bucket_name
+  environment_class = "mw1.small" # dev: scaled down from mw1.large
+  max_workers       = 5
+  min_workers       = 1
+  tags              = local.tags
 }
 
 # ===================== Monitoring =====================

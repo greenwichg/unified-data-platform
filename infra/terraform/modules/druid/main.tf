@@ -56,11 +56,11 @@ resource "aws_security_group" "druid" {
 
   # Kafka secondary (Druid ingestion) - MSK ports
   ingress {
-    from_port       = 9092
-    to_port         = 9098
-    protocol        = "tcp"
-    cidr_blocks     = ["10.0.0.0/16"]
-    description     = "MSK secondary cluster access for Druid ingestion"
+    from_port   = 9092
+    to_port     = 9098
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+    description = "MSK secondary cluster access for Druid ingestion"
   }
 
   # Internal communication

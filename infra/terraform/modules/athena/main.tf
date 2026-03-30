@@ -12,22 +12,22 @@ data "aws_caller_identity" "current" {}
 locals {
   athena_workgroups = {
     adhoc = {
-      description              = "Ad-hoc queries from analysts"
-      bytes_scanned_cutoff     = 10737418240   # 10 GB
-      per_query_memory_mb      = 4096          # 4 GB
-      concurrent_query_limit   = 50
+      description            = "Ad-hoc queries from analysts"
+      bytes_scanned_cutoff   = 10737418240 # 10 GB
+      per_query_memory_mb    = 4096        # 4 GB
+      concurrent_query_limit = 50
     }
     etl = {
-      description              = "ETL queries from Airflow"
-      bytes_scanned_cutoff     = 107374182400  # 100 GB
-      per_query_memory_mb      = 8192          # 8 GB
-      concurrent_query_limit   = 20
+      description            = "ETL queries from Airflow"
+      bytes_scanned_cutoff   = 107374182400 # 100 GB
+      per_query_memory_mb    = 8192         # 8 GB
+      concurrent_query_limit = 20
     }
     reporting = {
-      description              = "Dashboard and reporting queries"
-      bytes_scanned_cutoff     = 53687091200   # 50 GB
-      per_query_memory_mb      = 6144          # 6 GB
-      concurrent_query_limit   = 100
+      description            = "Dashboard and reporting queries"
+      bytes_scanned_cutoff   = 53687091200 # 50 GB
+      per_query_memory_mb    = 6144        # 6 GB
+      concurrent_query_limit = 100
     }
   }
 }
@@ -41,7 +41,7 @@ resource "aws_athena_workgroup" "this" {
   state       = "ENABLED"
 
   configuration {
-    enforce_workgroup_configuration = true
+    enforce_workgroup_configuration    = true
     publish_cloudwatch_metrics_enabled = true
 
     bytes_scanned_cutoff_per_query = each.value.bytes_scanned_cutoff
@@ -80,25 +80,25 @@ resource "aws_athena_data_catalog" "glue" {
 
 # ---------- Glue Catalog Databases (replaces Hive Metastore schemas) ----------
 resource "aws_glue_catalog_database" "zomato_raw" {
-  name         = "zomato_raw"
-  catalog_id   = data.aws_caller_identity.current.account_id
-  description  = "Raw ingestion layer - landing zone for Kafka/Flink data"
+  name        = "zomato_raw"
+  catalog_id  = data.aws_caller_identity.current.account_id
+  description = "Raw ingestion layer - landing zone for Kafka/Flink data"
 
   location_uri = "s3://${var.result_bucket}/raw/"
 }
 
 resource "aws_glue_catalog_database" "zomato_curated" {
-  name         = "zomato_curated"
-  catalog_id   = data.aws_caller_identity.current.account_id
-  description  = "Curated layer - cleaned, deduped, enriched data"
+  name        = "zomato_curated"
+  catalog_id  = data.aws_caller_identity.current.account_id
+  description = "Curated layer - cleaned, deduped, enriched data"
 
   location_uri = "s3://${var.result_bucket}/curated/"
 }
 
 resource "aws_glue_catalog_database" "zomato_gold" {
-  name         = "zomato_gold"
-  catalog_id   = data.aws_caller_identity.current.account_id
-  description  = "Gold layer - pre-aggregated metrics and KPIs for dashboards"
+  name        = "zomato_gold"
+  catalog_id  = data.aws_caller_identity.current.account_id
+  description = "Gold layer - pre-aggregated metrics and KPIs for dashboards"
 
   location_uri = "s3://${var.result_bucket}/gold/"
 }
@@ -181,7 +181,7 @@ resource "aws_iam_role_policy" "athena_access" {
         Sid    = "S3DataLakeAccess"
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation",
-                  "s3:PutObject", "s3:DeleteObject"]
+        "s3:PutObject", "s3:DeleteObject"]
         Resource = [
           "arn:aws:s3:::${var.result_bucket}",
           "arn:aws:s3:::${var.result_bucket}/*"
@@ -191,12 +191,12 @@ resource "aws_iam_role_policy" "athena_access" {
         Sid    = "GlueCatalogAccess"
         Effect = "Allow"
         Action = ["glue:GetDatabase", "glue:GetDatabases",
-                  "glue:GetTable", "glue:GetTables", "glue:GetPartition",
-                  "glue:GetPartitions", "glue:BatchGetPartition",
-                  "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable",
-                  "glue:CreatePartition", "glue:UpdatePartition",
-                  "glue:DeletePartition", "glue:BatchCreatePartition",
-                  "glue:BatchDeletePartition"]
+          "glue:GetTable", "glue:GetTables", "glue:GetPartition",
+          "glue:GetPartitions", "glue:BatchGetPartition",
+          "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable",
+          "glue:CreatePartition", "glue:UpdatePartition",
+          "glue:DeletePartition", "glue:BatchCreatePartition",
+        "glue:BatchDeletePartition"]
         Resource = [
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/*",

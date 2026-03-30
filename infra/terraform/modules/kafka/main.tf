@@ -78,9 +78,9 @@ data "aws_s3_bucket" "data_lake" {
 
 # ---------- MSK Configuration ----------
 resource "aws_msk_configuration" "this" {
-  name              = "${var.project_name}-${var.environment}-msk-config"
-  kafka_versions    = [var.kafka_version]
-  description       = "MSK configuration for ${var.project_name} ${var.environment}"
+  name           = "${var.project_name}-${var.environment}-msk-config"
+  kafka_versions = [var.kafka_version]
+  description    = "MSK configuration for ${var.project_name} ${var.environment}"
 
   server_properties = <<-PROPERTIES
     auto.create.topics.enable=false
@@ -112,7 +112,7 @@ resource "aws_msk_cluster" "this" {
         volume_size = var.ebs_volume_size
         provisioned_throughput {
           enabled           = true
-          volume_throughput  = 250
+          volume_throughput = 250
         }
       }
     }

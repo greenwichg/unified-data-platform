@@ -21,7 +21,7 @@ locals {
       code_s3_key          = var.application_configs["pipeline1-cep"].code_s3_path
       environment_properties = {
         "kafka" = {
-          "bootstrap.servers" = var.kafka_bootstrap_servers
+          "bootstrap.servers"   = var.kafka_bootstrap_servers
           "schema.registry.url" = var.schema_registry_url
         }
         "s3" = {
@@ -31,9 +31,9 @@ locals {
           "output.prefix"     = "pipeline1-batch-etl/iceberg"
         }
         "iceberg" = {
-          "catalog.type"  = "hive"
-          "catalog.name"  = "zomato_iceberg"
-          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline1-batch-etl/iceberg"
+          "catalog.type" = "hive"
+          "catalog.name" = "zomato_iceberg"
+          "warehouse"    = "s3://${var.s3_output_bucket}/pipeline1-batch-etl/iceberg"
         }
       }
     }
@@ -48,9 +48,9 @@ locals {
       code_s3_key          = var.application_configs["pipeline2-cdc"].code_s3_path
       environment_properties = {
         "kafka" = {
-          "bootstrap.servers" = var.kafka_bootstrap_servers
+          "bootstrap.servers"   = var.kafka_bootstrap_servers
           "schema.registry.url" = var.schema_registry_url
-          "consumer.group.id"  = "flink-cdc-processor"
+          "consumer.group.id"   = "flink-cdc-processor"
         }
         "s3" = {
           "checkpoint.bucket" = var.s3_checkpoints_bucket
@@ -59,10 +59,10 @@ locals {
           "output.prefix"     = "pipeline2-cdc/iceberg"
         }
         "iceberg" = {
-          "catalog.type"  = "hive"
-          "catalog.name"  = "zomato_iceberg"
-          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline2-cdc/iceberg"
-          "database"      = "zomato_cdc"
+          "catalog.type" = "hive"
+          "catalog.name" = "zomato_iceberg"
+          "warehouse"    = "s3://${var.s3_output_bucket}/pipeline2-cdc/iceberg"
+          "database"     = "zomato_cdc"
         }
       }
     }
@@ -88,9 +88,9 @@ locals {
           "output.prefix"     = "pipeline4-realtime/orc"
         }
         "iceberg" = {
-          "catalog.type"  = "hive"
-          "catalog.name"  = "zomato_iceberg"
-          "warehouse"     = "s3://${var.s3_output_bucket}/pipeline4-realtime/iceberg"
+          "catalog.type" = "hive"
+          "catalog.name" = "zomato_iceberg"
+          "warehouse"    = "s3://${var.s3_output_bucket}/pipeline4-realtime/iceberg"
         }
       }
     }
@@ -281,10 +281,10 @@ resource "aws_kinesisanalyticsv2_application" "flink" {
     flink_application_configuration {
 
       checkpoint_configuration {
-        configuration_type = "CUSTOM"
+        configuration_type            = "CUSTOM"
         checkpointing_enabled         = true
-        checkpoint_interval            = 60000
-        min_pause_between_checkpoints  = 30000
+        checkpoint_interval           = 60000
+        min_pause_between_checkpoints = 30000
       }
 
       monitoring_configuration {
