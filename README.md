@@ -11,10 +11,11 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 
 | Pipeline | Source | Processing | Sink | Format |
 |----------|--------|-----------|------|--------|
-| Pipeline 1 - Batch ETL | Aurora MySQL | Spark JDBC → S3 | Iceberg + ORC | ORC |
-| Pipeline 2 - CDC | Aurora MySQL | Debezium → MSK | Flink → S3 (Iceberg) | Avro/ORC |
-| Pipeline 3 - DynamoDB Streams | DynamoDB | Streams → S3 JSON | Spark (EMR) → S3 | ORC |
-| Pipeline 4 - Real-time Events | Microservices/Web/Mobile | Custom Producer → MSK (2 clusters) | Flink → S3 + Druid | ORC |
+| Pipeline 1 - Batch ETL | Aurora MySQL | Spark JDBC | Iceberg + ORC → S3 | ORC |
+| Pipeline 2 - CDC | Aurora MySQL | Debezium → MSK → Flink | S3 Iceberg | Avro/ORC |
+| Pipeline 3 - DynamoDB Streams | DynamoDB | Streams → S3 JSON → Spark (EMR) | S3 | ORC |
+| Pipeline 4 - Real-time Events (Path 1) | Microservices / Web / Mobile | Custom Producer → MSK → Flink | S3 → Athena (Trino) | ORC |
+| Pipeline 4 - Real-time Events (Path 2) | Microservices / Web / Mobile | Custom Producer → MSK → Flink | MSK Cluster 2 → Druid | ORC |
 
 ### Query Layer
 - **Amazon Athena** (Trino-based, serverless): 250K+ queries/week, 2PB scanned, 3 Athena workgroups (Adhoc, ETL, Reporting)
