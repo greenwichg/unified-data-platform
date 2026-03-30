@@ -51,6 +51,18 @@ variable "core_instance_count" {
   default     = 5
 }
 
+variable "use_spot_instances" {
+  description = "Use Spot instances for EMR core nodes (up to 70% savings)"
+  type        = bool
+  default     = true
+}
+
+variable "spot_bid_price_percent" {
+  description = "Maximum Spot price as percentage of On-Demand (e.g. 60 = 60%)"
+  type        = number
+  default     = 60
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

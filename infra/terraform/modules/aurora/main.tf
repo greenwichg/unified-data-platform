@@ -3,39 +3,6 @@
 # Source for Pipeline 1 (Spark JDBC) and Pipeline 2 (Debezium CDC)
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_ids" {
-  description = "Data subnet IDs for Aurora"
-  type        = list(string)
-}
-
-variable "instance_class" {
-  type    = string
-  default = "db.r6g.4xlarge"
-}
-
-variable "instance_count" {
-  type    = number
-  default = 3
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- DB Subnet Group ----------
 resource "aws_db_subnet_group" "aurora" {
   name       = "${var.project_name}-${var.environment}-aurora"
@@ -140,19 +107,3 @@ resource "aws_rds_cluster_instance" "main" {
   })
 }
 
-# ---------- Outputs ----------
-output "cluster_endpoint" {
-  value = aws_rds_cluster.main.endpoint
-}
-
-output "reader_endpoint" {
-  value = aws_rds_cluster.main.reader_endpoint
-}
-
-output "cluster_id" {
-  value = aws_rds_cluster.main.id
-}
-
-output "security_group_id" {
-  value = aws_security_group.aurora.id
-}

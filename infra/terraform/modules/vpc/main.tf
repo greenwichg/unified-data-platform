@@ -2,35 +2,6 @@
 # VPC Module - Network foundation for Zomato Data Platform
 ###############################################################################
 
-variable "project_name" {
-  description = "Project name prefix for all resources"
-  type        = string
-  default     = "zomato-data-platform"
-}
-
-variable "environment" {
-  description = "Environment (dev/staging/prod)"
-  type        = string
-}
-
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "availability_zones" {
-  description = "List of availability zones"
-  type        = list(string)
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
-}
-
-variable "tags" {
-  description = "Common tags for all resources"
-  type        = map(string)
-  default     = {}
-}
-
 # ---------- VPC ----------
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -191,23 +162,3 @@ resource "aws_vpc_endpoint_route_table_association" "dynamodb_private" {
 
 data "aws_region" "current" {}
 
-# ---------- Outputs ----------
-output "vpc_id" {
-  value = aws_vpc.main.id
-}
-
-output "public_subnet_ids" {
-  value = aws_subnet.public[*].id
-}
-
-output "private_subnet_ids" {
-  value = aws_subnet.private[*].id
-}
-
-output "data_subnet_ids" {
-  value = aws_subnet.data[*].id
-}
-
-output "vpc_cidr_block" {
-  value = aws_vpc.main.cidr_block
-}

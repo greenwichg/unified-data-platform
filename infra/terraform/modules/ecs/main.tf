@@ -2,28 +2,6 @@
 # ECS Module - Container orchestration for Debezium connectors and services
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_ids" {
-  type = list(string)
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- ECS Cluster ----------
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-${var.environment}-services"
@@ -83,29 +61,6 @@ resource "aws_security_group" "ecs" {
   lifecycle {
     create_before_destroy = true
   }
-}
-
-# ---------- IAM Roles ----------
-resource "aws_iam_role" "ecs_task_execution" {
-  name = "${var.project_name}-${var.environment}-ecs-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
-  role       = aws_iam_role.ecs_task_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # ---------- Debezium Connector Task Definition ----------
@@ -206,19 +161,3 @@ resource "aws_cloudwatch_log_group" "debezium" {
 
 data "aws_region" "current" {}
 
-# ---------- Outputs ----------
-output "cluster_id" {
-  value = aws_ecs_cluster.main.id
-}
-
-output "cluster_arn" {
-  value = aws_ecs_cluster.main.arn
-}
-
-output "cluster_name" {
-  value = aws_ecs_cluster.main.name
-}
-
-output "security_group_id" {
-  value = aws_security_group.ecs.id
-}

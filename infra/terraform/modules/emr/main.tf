@@ -2,64 +2,6 @@
 # EMR Module - Spark on EMR for Pipeline 3 (DynamoDB Streams → S3)
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_id" {
-  description = "Subnet for EMR cluster"
-  type        = string
-}
-
-variable "s3_log_bucket" {
-  type = string
-}
-
-variable "s3_output_bucket" {
-  type = string
-}
-
-variable "master_instance_type" {
-  type    = string
-  default = "r8g.2xlarge"
-}
-
-variable "core_instance_type" {
-  type    = string
-  default = "r8g.4xlarge"
-}
-
-variable "core_instance_count" {
-  type    = number
-  default = 5
-}
-
-variable "use_spot_instances" {
-  description = "Use Spot instances for EMR core nodes (up to 70% savings)"
-  type        = bool
-  default     = true
-}
-
-variable "spot_bid_price_percent" {
-  description = "Maximum Spot price as percentage of On-Demand (e.g. 60 = 60%)"
-  type        = number
-  default     = 60
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- Security Groups ----------
 resource "aws_security_group" "emr_master" {
   name_prefix = "${var.project_name}-${var.environment}-emr-master-"
@@ -99,91 +41,6 @@ resource "aws_security_group" "emr_core" {
   lifecycle {
     create_before_destroy = true
   }
-}
-
-# ---------- IAM Roles ----------
-resource "aws_iam_role" "emr_service" {
-  name = "${var.project_name}-${var.environment}-emr-service-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "elasticmapreduce.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "emr_service" {
-  role       = aws_iam_role.emr_service.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole"
-}
-
-resource "aws_iam_role" "emr_ec2" {
-  name = "${var.project_name}-${var.environment}-emr-ec2-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy" "emr_ec2_s3" {
-  name = "emr-s3-dynamodb-access"
-  role = aws_iam_role.emr_ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.s3_output_bucket}",
-          "arn:aws:s3:::${var.s3_output_bucket}/*",
-          "arn:aws:s3:::${var.s3_log_bucket}",
-          "arn:aws:s3:::${var.s3_log_bucket}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:DescribeTable",
-          "dynamodb:Scan",
-          "dynamodb:Query",
-          "dynamodb:GetItem",
-          "dynamodb:DescribeStream",
-          "dynamodb:GetRecords",
-          "dynamodb:GetShardIterator",
-          "dynamodb:ListStreams"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_instance_profile" "emr_ec2" {
-  name = "${var.project_name}-${var.environment}-emr-ec2-profile"
-  role = aws_iam_role.emr_ec2.name
 }
 
 # ---------- EMR Cluster ----------
@@ -280,11 +137,3 @@ resource "aws_emr_cluster" "spark" {
   })
 }
 
-# ---------- Outputs ----------
-output "cluster_id" {
-  value = aws_emr_cluster.spark.id
-}
-
-output "master_public_dns" {
-  value = aws_emr_cluster.spark.master_public_dns
-}

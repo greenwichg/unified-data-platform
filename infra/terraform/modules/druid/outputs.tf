@@ -31,3 +31,13 @@ output "asg_arns" {
   description = "Map of Druid ASG ARNs by node type"
   value       = { for k, v in aws_autoscaling_group.druid : k => v.arn }
 }
+
+output "broker_endpoint" {
+  description = "Internal endpoint for Druid Broker queries"
+  value       = "${var.project_name}-${var.environment}-druid-broker.internal:8082"
+}
+
+output "coordinator_endpoint" {
+  description = "Internal endpoint for Druid Coordinator"
+  value       = "${var.project_name}-${var.environment}-druid-coordinator.internal:8081"
+}
