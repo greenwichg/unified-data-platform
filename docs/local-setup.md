@@ -13,6 +13,8 @@ This guide walks through setting up the full Zomato Data Platform on your local 
 | Apache Flink (Docker) | Amazon Managed Flink | `flink-jobmanager`, `flink-taskmanager` |
 | DynamoDB Local (Docker) | Amazon DynamoDB | `dynamodb-local`, `dynamodb-init` |
 | Apache Spark (Docker) | Amazon EMR | `spark-master`, `spark-worker` |
+| DynamoDB Stream Processor (Docker) | AWS Lambda (DynamoDB trigger) | `dynamodb-stream-processor` |
+| Druid Feeder (Docker) | EC2 ASG consumer fleet | `druid-feeder` |
 | Trino (Docker) | Amazon Athena (Trino-based, serverless) | `trino` |
 | Apache Druid (Docker) | Apache Druid on EC2 R8g | `druid-coordinator`, `druid-historical`, `druid-middlemanager`, `druid-broker`, `druid-router` |
 | MinIO (Docker) | Amazon S3 | `minio`, `minio-init` |
@@ -141,7 +143,7 @@ To seed individual targets:
 
 ```bash
 make seed-mysql      # Aurora MySQL tables (orders, users, menu_items, promotions, …)
-make seed-dynamodb   # DynamoDB tables (requires AWS credentials for real DynamoDB)
+make seed-dynamodb   # DynamoDB Local tables (orders, payments, user-locations, sessions, …)
 make seed-kafka      # Kafka topics (orders, users, menu, promo)
 ```
 
@@ -178,12 +180,14 @@ make cdc-register
 |---|---|---|
 | **Airflow** | http://localhost:8080 | admin / admin |
 | **Flink UI** | http://localhost:8084 | — |
+| **Spark Master UI** | http://localhost:8090 | — |
 | **Trino** | http://localhost:8085 | any username, no password |
 | **Druid Console** | http://localhost:8888 | — (via druid-router) |
 | **Druid Coordinator** | http://localhost:8086 | — |
 | **Kafka Connect** | http://localhost:8083 | — |
 | **Schema Registry** | http://localhost:8081 | — |
 | **MinIO Console** | http://localhost:9001 | minioadmin / minioadmin |
+| **DynamoDB Local** | localhost:8000 | — (API endpoint, no UI) |
 | **MySQL** | localhost:3306 | root / rootpass |
 | **Kafka Broker 1** | localhost:9092 | — |
 | **Kafka Broker 2** | localhost:9093 | — |
@@ -265,9 +269,21 @@ docker exec $(docker compose -f local/docker-compose.yml --project-directory . p
 
 ### Pipeline 3 — DynamoDB Streams → Spark
 
-The local stack simulates the Spark processing step using Trino instead of EMR. Real DynamoDB Streams testing requires AWS credentials and a real DynamoDB table with streams enabled.
+The local stack runs full equivalents of both production components:
 
-For local testing of the Spark logic, run the converter directly:
+- **`dynamodb-local`** — Amazon DynamoDB API-compatible emulator (port 8000). Pre-seeded with 7 tables by `dynamodb-init`.
+- **`dynamodb-stream-processor`** — simulates the AWS Lambda trigger: polls DynamoDB Local for changes and writes JSON records to MinIO (equivalent of S3 raw bucket).
+- **`spark-master` / `spark-worker`** — Apache Spark cluster configured for MinIO (S3A), equivalent of Amazon EMR.
+
+Verify DynamoDB tables are ready:
+
+```bash
+docker exec $(docker compose -f local/docker-compose.yml --project-directory . ps -q dynamodb-local) \
+  sh -c "AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+  aws dynamodb list-tables --endpoint-url http://localhost:8000 --region us-east-1"
+```
+
+Run the Spark ORC converter directly against MinIO:
 
 ```bash
 python3 platform/pipelines/pipeline3_dynamodb_streams/src/spark_orc_converter.py \

@@ -13,6 +13,10 @@ This guide walks through deploying the Zomato Data Platform to AWS from scratch.
 | Confluent Schema Registry | AWS Glue Schema Registry | Glue |
 | Debezium Kafka Connect | Debezium on ECS Fargate | ECS |
 | Apache Flink (Docker) | Amazon Managed Flink | Kinesis Analytics v2 |
+| DynamoDB Local (Docker) | Amazon DynamoDB | DynamoDB |
+| Apache Spark (Docker) | Amazon EMR | EMR |
+| DynamoDB Stream Processor (Docker) | AWS Lambda (DynamoDB Streams trigger) | Lambda |
+| Druid Feeder (Docker) | EC2 ASG consumer fleet | EC2 + ASG |
 | Trino (Docker) | Amazon Athena (serverless) | Athena |
 | Apache Druid (Docker) | Apache Druid on EC2 R8g | EC2 + ASG |
 | MinIO (Docker) | Amazon S3 | S3 |
