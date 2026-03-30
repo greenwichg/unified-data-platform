@@ -243,8 +243,13 @@ services:
     restart: "no"
 
   # ==================== Stream Processing ====================
+  # PRODUCTION NOTE: In production, Amazon Managed Flink runs pipeline2 (CDC) and
+  # pipeline4 (real-time). Locally, custom Flink image includes Kafka, Iceberg,
+  # Avro, and S3A JARs required by both pipelines.
   flink-jobmanager:
-    image: flink:1.18-java17
+    build:
+      context: ../infra/docker/flink
+      dockerfile: Dockerfile
     hostname: flink-jobmanager
     ports:
       - "8084:8081"
@@ -253,11 +258,26 @@ services:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
         state.backend: hashmap
+        state.checkpoints.dir: s3://zomato-data-platform-dev-checkpoints/flink/checkpoints
         execution.checkpointing.interval: 10000
         parallelism.default: 2
+        s3.endpoint: http://minio:9000
+        s3.access-key: minioadmin
+        s3.secret-key: minioadmin
+        s3.path.style.access: true
+      ICEBERG_CATALOG_IMPL: "org.apache.iceberg.jdbc.JdbcCatalog"
+      JDBC_CATALOG_URI: "jdbc:mysql://mysql:3306/zomato"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MSK_BOOTSTRAP: "kafka-1:29092"
+      MSK_BOOTSTRAP_2: "kafka-2:29093"
+      S3_BUCKET: "zomato-data-platform-dev-raw-data-lake"
+      SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
 
   flink-taskmanager:
-    image: flink:1.18-java17
+    build:
+      context: ../infra/docker/flink
+      dockerfile: Dockerfile
     hostname: flink-taskmanager
     depends_on:
       - flink-jobmanager
@@ -267,6 +287,10 @@ services:
         jobmanager.rpc.address: flink-jobmanager
         taskmanager.numberOfTaskSlots: 4
         taskmanager.memory.process.size: 4gb
+        s3.endpoint: http://minio:9000
+        s3.access-key: minioadmin
+        s3.secret-key: minioadmin
+        s3.path.style.access: true
 
   # ==================== Batch Processing (Pipeline 3) ====================
   # PRODUCTION NOTE: In production, Amazon EMR runs spark_orc_converter.py.
@@ -284,6 +308,13 @@ services:
       SPARK_MASTER_HOST: spark-master
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: ap-south-1
+      S3_ENDPOINT_URL: "http://minio:9000"
+      S3_BUCKET: "zomato-data-platform-dev-raw-data-lake"
+      ICEBERG_CATALOG_IMPL: "org.apache.iceberg.jdbc.JdbcCatalog"
+      JDBC_CATALOG_URI: "jdbc:mysql://mysql:3306/zomato"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
 
   spark-worker:
     build:
@@ -299,6 +330,8 @@ services:
       SPARK_WORKER_CORES: 2
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: ap-south-1
+      S3_ENDPOINT_URL: "http://minio:9000"
 
   # ==================== Query Engine (Local Dev Only) ====================
   # PRODUCTION NOTE: In production, Amazon Athena (serverless) replaces Trino,
@@ -435,6 +468,56 @@ services:
       bash -c "airflow db init &&
                airflow users create --username admin --password admin
                --firstname Admin --lastname User --role Admin --email admin@zomato.com"
+
+  # ==================== Pipeline 3: DynamoDB Stream Processor ====================
+  # PRODUCTION NOTE: In production this runs as an AWS Lambda triggered by DynamoDB
+  # Streams. Locally, this container polls DynamoDB Local streams and writes JSON
+  # records to MinIO, simulating the Lambda trigger loop.
+  dynamodb-stream-processor:
+    image: python:3.11-slim
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      DYNAMODB_ENDPOINT: "http://dynamodb-local:8000"
+      S3_ENDPOINT_URL: "http://minio:9000"
+      S3_BUCKET: "zomato-data-platform-dev-raw-data-lake"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: ap-south-1
+    volumes:
+      - ../platform/pipelines/pipeline3_dynamodb_streams/src:/app
+    command: >
+      bash -c "pip install boto3 --quiet &&
+               python /app/dynamodb_stream_processor.py"
+    restart: on-failure
+
+  # ==================== Pipeline 4: EC2 Consumer Fleet (Druid Feeder) ====================
+  # PRODUCTION NOTE: In production, an EC2 ASG runs kafka_consumer_autoscaling.py,
+  # reading druid-ingestion-events from MSK Cluster 2 and pushing to Druid HTTP API.
+  # Locally, a single container replaces the fleet.
+  druid-feeder:
+    image: python:3.11-slim
+    depends_on:
+      - kafka-2
+      - druid-router
+    environment:
+      MSK_BOOTSTRAP_2: "kafka-2:29093"
+      SOURCE_TOPIC: "druid-ingestion-events"
+      DRUID_INDEXER_URL: "http://druid-router:8888"
+      DRUID_DATASOURCE: "zomato_realtime_events"
+      CONSUMER_GROUP: "ec2-druid-feeder"
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: ap-south-1
+    volumes:
+      - ../platform/pipelines/pipeline4_realtime_events/src:/app
+    command: >
+      bash -c "pip install confluent-kafka boto3 --quiet &&
+               python /app/kafka_consumer_autoscaling.py"
+    restart: on-failure
 
   # ==================== Object Storage (S3 mock) ====================
   minio:

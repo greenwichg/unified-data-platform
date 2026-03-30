@@ -158,7 +158,7 @@ FLINK_SQL_STATEMENTS = {
         ) PARTITIONED BY (dt) WITH (
             'connector' = 'iceberg',
             'catalog-name' = 'zomato_iceberg',
-            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
+            'catalog-impl' = '{catalog_impl}',
             'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
             'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
             'format-version' = '2',
@@ -186,7 +186,7 @@ FLINK_SQL_STATEMENTS = {
         ) PARTITIONED BY (dt) WITH (
             'connector' = 'iceberg',
             'catalog-name' = 'zomato_iceberg',
-            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
+            'catalog-impl' = '{catalog_impl}',
             'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
             'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
             'format-version' = '2',
@@ -216,7 +216,7 @@ FLINK_SQL_STATEMENTS = {
         ) PARTITIONED BY (dt) WITH (
             'connector' = 'iceberg',
             'catalog-name' = 'zomato_iceberg',
-            'catalog-impl' = 'org.apache.iceberg.aws.glue.GlueCatalog',
+            'catalog-impl' = '{catalog_impl}',
             'warehouse' = 's3://{s3_bucket}/pipeline2-cdc/iceberg',
             'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
             'format-version' = '2',
@@ -333,7 +333,12 @@ def generate_flink_job_config(
         },
         "iceberg": {
             "warehouse": f"s3://{s3_bucket}/pipeline2-cdc/iceberg",
-            "catalog_impl": "org.apache.iceberg.aws.glue.GlueCatalog",
+            "catalog_impl": os.environ.get(
+                "ICEBERG_CATALOG_IMPL", "org.apache.iceberg.aws.glue.GlueCatalog"
+            ),
+            "jdbc_uri": os.environ.get("JDBC_CATALOG_URI", ""),
+            "jdbc_user": os.environ.get("MYSQL_USER", ""),
+            "jdbc_password": os.environ.get("MYSQL_PASSWORD", ""),
             "write_format": "orc",
             "upsert_enabled": True,
         },
@@ -342,6 +347,9 @@ def generate_flink_job_config(
                 kafka_bootstrap=kafka_bootstrap,
                 schema_registry_url=schema_registry_url,
                 s3_bucket=s3_bucket,
+                catalog_impl=os.environ.get(
+                    "ICEBERG_CATALOG_IMPL", "org.apache.iceberg.aws.glue.GlueCatalog"
+                ),
             )
             for key, stmt in FLINK_SQL_STATEMENTS.items()
         },

@@ -99,14 +99,25 @@ TABLE_CONFIGS = [
 
 
 def create_spark_session(app_name: str = "Pipeline1-BatchETL") -> SparkSession:
-    """Create a Spark session configured for JDBC reads and Iceberg/ORC writes."""
-    return (
+    """Create a Spark session configured for JDBC reads and Iceberg/ORC writes.
+
+    Catalog selection (via ICEBERG_CATALOG_IMPL env var):
+      - Production (default): AWS Glue Data Catalog
+      - Local dev:            Iceberg JDBC catalog backed by MySQL
+    """
+    s3_bucket = os.environ.get("S3_BUCKET", "zomato-data-platform-raw-data-lake")
+    catalog_impl = os.environ.get(
+        "ICEBERG_CATALOG_IMPL", "org.apache.iceberg.aws.glue.GlueCatalog"
+    )
+    is_local = catalog_impl == "org.apache.iceberg.jdbc.JdbcCatalog"
+    warehouse = f"s3a://{s3_bucket}/iceberg" if is_local else f"s3://{s3_bucket}/iceberg"
+
+    builder = (
         SparkSession.builder.appName(app_name)
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
         .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.iceberg.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog")
-        .config("spark.sql.catalog.iceberg.warehouse", f"s3://{os.environ.get('S3_BUCKET', 'zomato-data-platform-raw-data-lake')}/iceberg")
-        .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+        .config("spark.sql.catalog.iceberg.catalog-impl", catalog_impl)
+        .config("spark.sql.catalog.iceberg.warehouse", warehouse)
         .config("spark.sql.orc.impl", "native")
         .config("spark.sql.orc.enableVectorizedReader", "true")
         .config("spark.sql.orc.filterPushdown", "true")
@@ -114,13 +125,34 @@ def create_spark_session(app_name: str = "Pipeline1-BatchETL") -> SparkSession:
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         .config("spark.sql.adaptive.skewJoin.enabled", "true")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-        .config(
-            "spark.hadoop.fs.s3a.aws.credentials.provider",
-            "com.amazonaws.auth.InstanceProfileCredentialsProvider",
-        )
-        .enableHiveSupport()
-        .getOrCreate()
     )
+
+    if is_local:
+        # Local: JDBC catalog backed by MySQL + S3A → MinIO
+        builder = (
+            builder
+            .config("spark.sql.catalog.iceberg.uri", os.environ.get("JDBC_CATALOG_URI", "jdbc:mysql://mysql:3306/zomato"))
+            .config("spark.sql.catalog.iceberg.jdbc.user", os.environ.get("MYSQL_USER", "root"))
+            .config("spark.sql.catalog.iceberg.jdbc.password", os.environ.get("MYSQL_PASSWORD", "rootpass"))
+            .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+            .config("spark.hadoop.fs.s3a.endpoint", os.environ.get("S3_ENDPOINT_URL", "http://minio:9000"))
+            .config("spark.hadoop.fs.s3a.access.key", os.environ.get("AWS_ACCESS_KEY_ID", "minioadmin"))
+            .config("spark.hadoop.fs.s3a.secret.key", os.environ.get("AWS_SECRET_ACCESS_KEY", "minioadmin"))
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        )
+    else:
+        # Production: Glue catalog + instance profile credentials
+        builder = (
+            builder
+            .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+            .config(
+                "spark.hadoop.fs.s3a.aws.credentials.provider",
+                "com.amazonaws.auth.InstanceProfileCredentialsProvider",
+            )
+        )
+
+    return builder.enableHiveSupport().getOrCreate()
 
 
 def get_jdbc_bounds(
