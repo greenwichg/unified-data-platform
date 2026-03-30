@@ -77,6 +77,7 @@ module "kafka" {
   instance_type     = var.kafka_instance_type
   number_of_brokers = var.kafka_broker_count
   ebs_volume_size   = var.kafka_ebs_volume_size
+  log_bucket        = module.s3.raw_bucket_name
   tags              = local.tags
 }
 

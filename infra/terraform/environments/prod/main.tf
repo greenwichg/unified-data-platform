@@ -77,6 +77,7 @@ module "kafka" {
   instance_type     = "kafka.r8g.4xlarge"
   number_of_brokers = 9
   ebs_volume_size   = 2000
+  log_bucket        = module.s3.raw_bucket_name
   tags              = local.tags
 }
 
