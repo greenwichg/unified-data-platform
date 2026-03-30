@@ -54,9 +54,8 @@ variable "enhanced_monitoring" {
 }
 
 variable "log_bucket" {
-  description = "S3 bucket name for MSK broker logs (defaults to <project_name>-<environment>-raw)"
+  description = "S3 bucket name for MSK broker logs"
   type        = string
-  default     = ""
 }
 
 variable "tags" {
