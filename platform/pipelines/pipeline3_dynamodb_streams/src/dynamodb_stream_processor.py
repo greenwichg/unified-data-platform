@@ -23,7 +23,14 @@ class DynamoDBStreamToS3:
     """Processes DynamoDB Stream records and writes to S3 as JSON."""
 
     def __init__(self, s3_bucket: str, s3_prefix: str = "pipeline3-dynamodb/json-raw"):
-        self.s3_client = boto3.client("s3")
+        # S3_ENDPOINT_URL is set locally to point to MinIO; unset in production (real S3)
+        s3_kwargs = {}
+        s3_endpoint = os.environ.get("S3_ENDPOINT_URL")
+        if s3_endpoint:
+            s3_kwargs["endpoint_url"] = s3_endpoint
+            s3_kwargs["aws_access_key_id"] = os.environ.get("AWS_ACCESS_KEY_ID")
+            s3_kwargs["aws_secret_access_key"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        self.s3_client = boto3.client("s3", **s3_kwargs)
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
 
