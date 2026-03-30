@@ -147,7 +147,7 @@ resource "aws_msk_cluster" "this" {
         enabled   = true
         log_group = aws_cloudwatch_log_group.msk.name
       }
-      s3_logs {
+      s3 {
         enabled = true
         bucket  = data.aws_s3_bucket.data_lake.id
         prefix  = "msk-logs/${var.project_name}-${var.environment}"
