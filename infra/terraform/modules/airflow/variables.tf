@@ -28,6 +28,24 @@ variable "s3_dags_bucket" {
   type        = string
 }
 
+variable "environment_class" {
+  description = "MWAA environment class (mw1.small, mw1.medium, mw1.large)"
+  type        = string
+  default     = "mw1.large"
+}
+
+variable "max_workers" {
+  description = "Maximum number of Airflow workers"
+  type        = number
+  default     = 25
+}
+
+variable "min_workers" {
+  description = "Minimum number of Airflow workers"
+  type        = number
+  default     = 5
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

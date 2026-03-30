@@ -14,7 +14,7 @@ locals {
     "pipeline1-cep" = {
       description          = "Batch CEP processing"
       runtime_environment  = var.runtime_environment
-      parallelism          = 8
+      parallelism          = var.parallelism_override > 0 ? var.parallelism_override : 8
       parallelism_per_kpu  = 2
       auto_scaling_enabled = var.auto_scaling_enabled
       code_s3_bucket       = var.code_s3_bucket
@@ -41,7 +41,7 @@ locals {
     "pipeline2-cdc" = {
       description          = "CDC stream processing"
       runtime_environment  = var.runtime_environment
-      parallelism          = 16
+      parallelism          = var.parallelism_override > 0 ? var.parallelism_override : 16
       parallelism_per_kpu  = 2
       auto_scaling_enabled = var.auto_scaling_enabled
       code_s3_bucket       = var.code_s3_bucket
@@ -70,7 +70,7 @@ locals {
     "pipeline4-realtime" = {
       description          = "Realtime event processing"
       runtime_environment  = var.runtime_environment
-      parallelism          = 32
+      parallelism          = var.parallelism_override > 0 ? var.parallelism_override : 32
       parallelism_per_kpu  = 4
       auto_scaling_enabled = var.auto_scaling_enabled
       code_s3_bucket       = var.code_s3_bucket

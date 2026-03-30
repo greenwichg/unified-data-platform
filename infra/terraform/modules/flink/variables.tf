@@ -91,6 +91,12 @@ variable "auto_scaling_enabled" {
   default     = true
 }
 
+variable "parallelism_override" {
+  description = "Override parallelism for all Flink applications (0 = use defaults)"
+  type        = number
+  default     = 0
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

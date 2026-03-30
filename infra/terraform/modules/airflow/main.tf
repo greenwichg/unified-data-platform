@@ -43,7 +43,7 @@ resource "aws_security_group" "airflow" {
 resource "aws_mwaa_environment" "main" {
   name               = "${var.project_name}-${var.environment}-airflow"
   airflow_version    = "2.8.1"
-  environment_class  = "mw1.large"
+  environment_class  = var.environment_class
   execution_role_arn = aws_iam_role.airflow.arn
 
   source_bucket_arn = "arn:aws:s3:::${var.s3_dags_bucket}"
@@ -77,8 +77,8 @@ resource "aws_mwaa_environment" "main" {
     }
   }
 
-  max_workers = 25
-  min_workers = 5
+  max_workers = var.max_workers
+  min_workers = var.min_workers
 
   airflow_configuration_options = {
     "core.default_timezone"           = "Asia/Kolkata"
