@@ -63,12 +63,9 @@ module "aurora" {
 
 # ===================== DynamoDB =====================
 module "dynamodb" {
-  source           = "../../modules/dynamodb"
-  environment      = var.environment
-  s3_raw_bucket    = module.s3.raw_bucket_name
-  lambda_s3_bucket = module.s3.checkpoints_bucket_name
-  lambda_s3_key    = "lambda/dynamodb_stream_processor.zip"
-  tags             = local.tags
+  source      = "../../modules/dynamodb"
+  environment = var.environment
+  tags        = local.tags
 }
 
 # ===================== Amazon MSK (replacing self-hosted Kafka on EC2) - Production Scale =====================

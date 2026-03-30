@@ -46,18 +46,3 @@ output "user_locations_stream_arn" {
   description = "Stream ARN of the user locations DynamoDB table"
   value       = aws_dynamodb_table.user_locations.stream_arn
 }
-
-output "stream_processor_lambda_arn" {
-  description = "ARN of the DynamoDB Streams → S3 Lambda function (Pipeline 3)"
-  value       = aws_lambda_function.stream_processor.arn
-}
-
-output "stream_processor_lambda_name" {
-  description = "Name of the DynamoDB Streams → S3 Lambda function"
-  value       = aws_lambda_function.stream_processor.function_name
-}
-
-output "stream_dlq_arn" {
-  description = "ARN of the DynamoDB stream processor dead-letter queue"
-  value       = aws_sqs_queue.stream_dlq.arn
-}
