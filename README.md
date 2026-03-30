@@ -25,7 +25,7 @@ A production-grade data platform processing 2M+ orders/day, 450M MSK messages/mi
 ```
 ├── platform/                              # Application code
 │   ├── pipelines/                         # Pipeline source code
-│   │   ├── pipeline1_batch_etl/           # Spark JDBC batch ETL (Aurora → S3 Iceberg/ORC) + Flink CEP (MSK → Fraud/Anomaly Detection → S3 Iceberg)
+│   │   ├── pipeline1_batch_etl/           # Spark JDBC batch ETL (Aurora → S3 Iceberg/ORC)
 │   │   ├── pipeline2_cdc/                 # Debezium CDC → MSK → Flink → S3 Iceberg
 │   │   ├── pipeline3_dynamodb_streams/    # DynamoDB Streams → EMR Spark → S3 ORC
 │   │   └── pipeline4_realtime_events/     # Events → MSK → Flink → S3 ORC + Druid
