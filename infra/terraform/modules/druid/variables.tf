@@ -28,6 +28,12 @@ variable "s3_deep_storage_bucket" {
   type        = string
 }
 
+variable "kafka_secondary_security_group_id" {
+  description = "Security group ID of the secondary MSK cluster for Druid ingestion"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

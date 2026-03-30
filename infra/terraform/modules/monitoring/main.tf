@@ -2,20 +2,6 @@
 # Monitoring Module - CloudWatch dashboards and alerts
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- SNS Topic for Alerts ----------
 resource "aws_sns_topic" "alerts" {
   name = "${var.project_name}-${var.environment}-alerts"
@@ -167,11 +153,3 @@ resource "aws_cloudwatch_metric_alarm" "druid_query_latency" {
 
 data "aws_region" "current" {}
 
-# ---------- Outputs ----------
-output "sns_topic_arn" {
-  value = aws_sns_topic.alerts.arn
-}
-
-output "dashboard_name" {
-  value = aws_cloudwatch_dashboard.main.dashboard_name
-}

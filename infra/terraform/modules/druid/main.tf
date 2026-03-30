@@ -4,38 +4,6 @@
 # Deployed on R8g instances for performance
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_ids" {
-  type = list(string)
-}
-
-variable "s3_deep_storage_bucket" {
-  type = string
-}
-
-variable "kafka_secondary_security_group_id" {
-  description = "Security group ID of the secondary MSK cluster for Druid ingestion"
-  type        = string
-  default     = ""
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- Security Group ----------
 resource "aws_security_group" "druid" {
   name_prefix = "${var.project_name}-${var.environment}-druid-"
@@ -117,51 +85,6 @@ resource "aws_security_group" "druid" {
   lifecycle {
     create_before_destroy = true
   }
-}
-
-# ---------- IAM Role ----------
-resource "aws_iam_role" "druid" {
-  name = "${var.project_name}-${var.environment}-druid-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy" "druid_s3" {
-  name = "druid-s3-access"
-  role = aws_iam_role.druid.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ]
-      Resource = [
-        "arn:aws:s3:::${var.s3_deep_storage_bucket}",
-        "arn:aws:s3:::${var.s3_deep_storage_bucket}/*"
-      ]
-    }]
-  })
-}
-
-resource "aws_iam_instance_profile" "druid" {
-  name = "${var.project_name}-${var.environment}-druid-profile"
-  role = aws_iam_role.druid.name
 }
 
 # ---------- Launch Templates for each Druid node type ----------
@@ -268,17 +191,3 @@ resource "aws_autoscaling_group" "druid" {
   }
 }
 
-# ---------- Outputs ----------
-output "security_group_id" {
-  value = aws_security_group.druid.id
-}
-
-output "broker_endpoint" {
-  description = "Internal endpoint for Druid Broker queries"
-  value       = "${var.project_name}-${var.environment}-druid-broker.internal:8082"
-}
-
-output "coordinator_endpoint" {
-  description = "Internal endpoint for Druid Coordinator"
-  value       = "${var.project_name}-${var.environment}-druid-coordinator.internal:8081"
-}

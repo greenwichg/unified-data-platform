@@ -3,32 +3,6 @@
 # Orchestrates ETL jobs, Athena queries, and pipeline scheduling
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "subnet_ids" {
-  type = list(string)
-}
-
-variable "s3_dags_bucket" {
-  type = string
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- Security Group ----------
 resource "aws_security_group" "airflow" {
   name_prefix = "${var.project_name}-${var.environment}-airflow-"
@@ -63,64 +37,6 @@ resource "aws_security_group" "airflow" {
   lifecycle {
     create_before_destroy = true
   }
-}
-
-# ---------- IAM Role ----------
-resource "aws_iam_role" "airflow" {
-  name = "${var.project_name}-${var.environment}-airflow-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = ["airflow.amazonaws.com", "airflow-env.amazonaws.com"]
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy" "airflow" {
-  name = "airflow-execution-policy"
-  role = aws_iam_role.airflow.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.s3_dags_bucket}",
-          "arn:aws:s3:::${var.s3_dags_bucket}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:DescribeLogGroups"
-        ]
-        Resource = ["*"]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "emr:*",
-          "ecs:*",
-          "ec2:Describe*"
-        ]
-        Resource = ["*"]
-      }
-    ]
-  })
 }
 
 # ---------- MWAA Environment ----------
@@ -177,11 +93,3 @@ resource "aws_mwaa_environment" "main" {
   })
 }
 
-# ---------- Outputs ----------
-output "airflow_arn" {
-  value = aws_mwaa_environment.main.arn
-}
-
-output "webserver_url" {
-  value = aws_mwaa_environment.main.webserver_url
-}

@@ -3,20 +3,6 @@
 # All pipelines converge to S3 with ORC format + Iceberg tables
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- Raw Data Lake Bucket ----------
 resource "aws_s3_bucket" "data_lake_raw" {
   bucket = "${var.project_name}-${var.environment}-raw-data-lake"
@@ -215,27 +201,3 @@ resource "aws_s3_bucket_public_access_block" "checkpoints" {
   restrict_public_buckets = true
 }
 
-# ---------- Outputs ----------
-output "raw_bucket_name" {
-  value = aws_s3_bucket.data_lake_raw.bucket
-}
-
-output "raw_bucket_arn" {
-  value = aws_s3_bucket.data_lake_raw.arn
-}
-
-output "processed_bucket_name" {
-  value = aws_s3_bucket.data_lake_processed.bucket
-}
-
-output "processed_bucket_arn" {
-  value = aws_s3_bucket.data_lake_processed.arn
-}
-
-output "checkpoints_bucket_name" {
-  value = aws_s3_bucket.checkpoints.bucket
-}
-
-output "airflow_logs_bucket_name" {
-  value = aws_s3_bucket.airflow_logs.bucket
-}

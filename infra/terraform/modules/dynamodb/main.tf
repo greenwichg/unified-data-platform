@@ -3,20 +3,6 @@
 # Stores order, payment, and location data
 ###############################################################################
 
-variable "project_name" {
-  type    = string
-  default = "zomato-data-platform"
-}
-
-variable "environment" {
-  type = string
-}
-
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
-
 # ---------- Orders Table ----------
 resource "aws_dynamodb_table" "orders" {
   name         = "${var.project_name}-${var.environment}-orders"
