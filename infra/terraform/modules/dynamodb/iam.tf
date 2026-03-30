@@ -91,5 +91,5 @@ resource "aws_iam_role" "dynamodb_backup" {
 
 resource "aws_iam_role_policy_attachment" "dynamodb_backup" {
   role       = aws_iam_role.dynamodb_backup.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForDynamoDB"
+  policy_arn = "arn:aws:iam::aws:policy/AWSBackupServiceRolePolicyForDynamoDB"
 }

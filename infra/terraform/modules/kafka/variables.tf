@@ -26,7 +26,7 @@ variable "subnet_ids" {
 variable "kafka_version" {
   description = "Apache Kafka version for MSK"
   type        = string
-  default     = "3.6.1"
+  default     = "3.7.x"
 }
 
 variable "instance_type" {
