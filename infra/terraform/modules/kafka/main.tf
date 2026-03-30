@@ -72,8 +72,12 @@ resource "aws_cloudwatch_log_group" "msk" {
 }
 
 # ---------- S3 Bucket for MSK Logs ----------
+locals {
+  log_bucket = var.log_bucket != "" ? var.log_bucket : "${var.project_name}-${var.environment}-raw"
+}
+
 data "aws_s3_bucket" "data_lake" {
-  bucket = "${var.project_name}-${var.environment}-raw"
+  bucket = local.log_bucket
 }
 
 # ---------- MSK Configuration ----------

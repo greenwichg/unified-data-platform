@@ -91,6 +91,7 @@ module "kafka_secondary" {
   number_of_brokers   = 6
   ebs_volume_size     = 1000
   enhanced_monitoring = "PER_TOPIC_PER_BROKER"
+  log_bucket          = module.s3.raw_bucket_name
   tags = merge(local.tags, {
     Cluster = "secondary"
     Purpose = "druid-ingestion"

@@ -53,6 +53,12 @@ variable "enhanced_monitoring" {
   default     = "PER_TOPIC_PER_BROKER"
 }
 
+variable "log_bucket" {
+  description = "S3 bucket name for MSK broker logs (defaults to <project_name>-<environment>-raw)"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)
