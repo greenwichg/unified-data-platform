@@ -89,7 +89,7 @@ resource "aws_security_group" "druid" {
 
 # ---------- Launch Templates for each Druid node type ----------
 locals {
-  druid_nodes = {
+  druid_nodes_default = {
     coordinator = {
       instance_type = "r8g.2xlarge"
       count         = 2
@@ -114,6 +114,15 @@ locals {
       instance_type = "r8g.xlarge"
       count         = 2
       volume_size   = 50
+    }
+  }
+
+  # Apply overrides when set (e.g. dev/test environments)
+  druid_nodes = {
+    for k, v in local.druid_nodes_default : k => {
+      instance_type = var.instance_type_override != "" ? var.instance_type_override : v.instance_type
+      count         = var.node_count_override > 0 ? var.node_count_override : v.count
+      volume_size   = v.volume_size
     }
   }
 }

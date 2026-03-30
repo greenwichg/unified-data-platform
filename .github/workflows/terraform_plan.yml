@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, develop]
     paths:
-      - 'terraform/**'
+      - 'infra/terraform/**'
       - '.github/workflows/terraform_plan.yml'
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
       - name: Determine changed environments
         id: filter
         run: |
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- terraform/)
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- infra/terraform/)
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
@@ -48,14 +48,14 @@ jobs:
           MODULES_CHANGED="false"
 
           # Check if modules changed (affects all environments)
-          if echo "$CHANGED_FILES" | grep -q "terraform/modules/"; then
+          if echo "$CHANGED_FILES" | grep -q "infra/terraform/modules/"; then
             MODULES_CHANGED="true"
             ENVS='["dev","staging","prod"]'
           else
             # Detect specific environment changes
             ENV_LIST=()
             for env in dev staging prod; do
-              if echo "$CHANGED_FILES" | grep -q "terraform/environments/${env}/"; then
+              if echo "$CHANGED_FILES" | grep -q "infra/terraform/environments/${env}/"; then
                 ENV_LIST+=("\"${env}\"")
               fi
             done
@@ -87,7 +87,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Format Check
-        run: terraform fmt -check -recursive terraform/
+        run: terraform fmt -check -recursive infra/terraform/
 
       - name: Install tflint
         uses: terraform-linters/setup-tflint@v4
@@ -96,7 +96,7 @@ jobs:
 
       - name: Run tflint
         run: |
-          cd terraform
+          cd infra/terraform
           for dir in modules/*/; do
             echo "Linting ${dir}..."
             tflint --chdir="${dir}" --minimum-failure-severity=warning || true
@@ -108,7 +108,7 @@ jobs:
       - name: Run checkov
         run: |
           checkov \
-            --directory terraform/ \
+            --directory infra/terraform/ \
             --framework terraform \
             --quiet \
             --compact \
@@ -131,11 +131,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-terraform
-          role-session-name: terraform-plan-${{ matrix.environment }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -144,7 +144,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: infra/terraform/environments/${{ matrix.environment }}
         run: |
           terraform init \
             -input=false \
@@ -152,7 +152,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        working-directory: terraform/environments/${{ matrix.environment }}
+        working-directory: infra/terraform/environments/${{ matrix.environment }}
         run: |
           terraform plan \
             -input=false \
@@ -166,7 +166,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
-          path: terraform/environments/${{ matrix.environment }}/tfplan
+          path: infra/terraform/environments/${{ matrix.environment }}/tfplan
           retention-days: 7
 
       - name: Comment plan on PR
@@ -177,7 +177,7 @@ jobs:
           script: |
             const fs = require('fs');
             const planOutput = fs.readFileSync(
-              'terraform/environments/${{ matrix.environment }}/plan_output.txt',
+              'infra/terraform/environments/${{ matrix.environment }}/plan_output.txt',
               'utf8'
             );
 

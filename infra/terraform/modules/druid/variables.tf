@@ -34,6 +34,18 @@ variable "kafka_secondary_security_group_id" {
   default     = ""
 }
 
+variable "instance_type_override" {
+  description = "Override instance type for all Druid nodes (used in dev/test)"
+  type        = string
+  default     = ""
+}
+
+variable "node_count_override" {
+  description = "Override node count for all Druid node types (used in dev/test)"
+  type        = number
+  default     = 0
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

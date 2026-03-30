@@ -5,7 +5,7 @@
 variable "aws_region" {
   description = "AWS region for dev environment"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-south-1"
 }
 
 variable "environment" {
@@ -25,7 +25,7 @@ variable "vpc_cidr" {
 variable "availability_zones" {
   description = "List of availability zones"
   type        = list(string)
-  default     = ["us-east-1a", "us-east-1b"]
+  default     = ["ap-south-1a", "ap-south-1b"]
 }
 
 # ===================== Aurora =====================
@@ -33,33 +33,33 @@ variable "availability_zones" {
 variable "aurora_instance_class" {
   description = "Instance class for Aurora MySQL"
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.t3.medium"  # dev: scaled down from db.r6g.4xlarge
 }
 
 variable "aurora_instance_count" {
   description = "Number of Aurora instances"
   type        = number
-  default     = 2
+  default     = 1  # dev: single instance, no reader
 }
 
 # ===================== Kafka =====================
 
 variable "kafka_instance_type" {
-  description = "EC2 instance type for Kafka brokers"
+  description = "MSK broker instance type"
   type        = string
-  default     = "r8g.2xlarge"
+  default     = "kafka.t3.small"  # dev: scaled down from kafka.r8g.4xlarge
 }
 
 variable "kafka_broker_count" {
   description = "Number of Kafka brokers"
   type        = number
-  default     = 3
+  default     = 2  # dev: minimum HA (one per AZ)
 }
 
 variable "kafka_ebs_volume_size" {
   description = "EBS volume size in GB for Kafka brokers"
   type        = number
-  default     = 500
+  default     = 20  # dev: scaled down from 2000 GB
 }
 
 # ===================== EMR (Spark) =====================
@@ -67,17 +67,17 @@ variable "kafka_ebs_volume_size" {
 variable "emr_master_instance_type" {
   description = "Instance type for EMR master node"
   type        = string
-  default     = "r8g.xlarge"
+  default     = "m5.xlarge"  # dev: scaled down from r8g.2xlarge
 }
 
 variable "emr_core_instance_type" {
   description = "Instance type for EMR core nodes"
   type        = string
-  default     = "r8g.2xlarge"
+  default     = "m5.xlarge"  # dev: scaled down from r8g.4xlarge
 }
 
 variable "emr_core_instance_count" {
   description = "Number of EMR core instances"
   type        = number
-  default     = 2
+  default     = 1  # dev: single core node
 }

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'terraform/**'
+      - 'infra/terraform/**'
 
 permissions:
   id-token: write
@@ -36,27 +36,27 @@ jobs:
       - name: Detect changes
         id: filter
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD -- terraform/)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- infra/terraform/)
           echo "Changed files:"
           echo "$CHANGED"
 
           MODULES_CHANGED="false"
-          if echo "$CHANGED" | grep -q "terraform/modules/"; then
+          if echo "$CHANGED" | grep -q "infra/terraform/modules/"; then
             MODULES_CHANGED="true"
           fi
 
           DEV_CHANGED="false"
-          if echo "$CHANGED" | grep -q "terraform/environments/dev/" || [ "$MODULES_CHANGED" = "true" ]; then
+          if echo "$CHANGED" | grep -q "infra/terraform/environments/dev/" || [ "$MODULES_CHANGED" = "true" ]; then
             DEV_CHANGED="true"
           fi
 
           STAGING_CHANGED="false"
-          if echo "$CHANGED" | grep -q "terraform/environments/staging/" || [ "$MODULES_CHANGED" = "true" ]; then
+          if echo "$CHANGED" | grep -q "infra/terraform/environments/staging/" || [ "$MODULES_CHANGED" = "true" ]; then
             STAGING_CHANGED="true"
           fi
 
           PROD_CHANGED="false"
-          if echo "$CHANGED" | grep -q "terraform/environments/prod/" || [ "$MODULES_CHANGED" = "true" ]; then
+          if echo "$CHANGED" | grep -q "infra/terraform/environments/prod/" || [ "$MODULES_CHANGED" = "true" ]; then
             PROD_CHANGED="true"
           fi
 
@@ -78,11 +78,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID_DEV }}:role/github-actions-terraform
-          role-session-name: terraform-apply-dev
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -91,15 +91,15 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        working-directory: terraform/environments/dev
+        working-directory: infra/terraform/environments/dev
         run: terraform init -input=false -no-color
 
       - name: Terraform Plan
-        working-directory: terraform/environments/dev
+        working-directory: infra/terraform/environments/dev
         run: terraform plan -input=false -no-color -out=tfplan
 
       - name: Terraform Apply
-        working-directory: terraform/environments/dev
+        working-directory: infra/terraform/environments/dev
         run: terraform apply -input=false -no-color -auto-approve tfplan
 
   # --------------------------------------------------------------------------
@@ -118,11 +118,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID_STAGING }}:role/github-actions-terraform
-          role-session-name: terraform-apply-staging
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -131,15 +131,15 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        working-directory: terraform/environments/staging
+        working-directory: infra/terraform/environments/staging
         run: terraform init -input=false -no-color
 
       - name: Terraform Plan
-        working-directory: terraform/environments/staging
+        working-directory: infra/terraform/environments/staging
         run: terraform plan -input=false -no-color -out=tfplan
 
       - name: Terraform Apply
-        working-directory: terraform/environments/staging
+        working-directory: infra/terraform/environments/staging
         run: terraform apply -input=false -no-color -auto-approve tfplan
 
   # --------------------------------------------------------------------------
@@ -160,11 +160,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID_PROD }}:role/github-actions-terraform
-          role-session-name: terraform-apply-prod
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -173,11 +173,11 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        working-directory: terraform/environments/prod
+        working-directory: infra/terraform/environments/prod
         run: terraform init -input=false -no-color
 
       - name: Terraform Plan
-        working-directory: terraform/environments/prod
+        working-directory: infra/terraform/environments/prod
         run: |
           terraform plan \
             -input=false \
@@ -187,7 +187,7 @@ jobs:
           echo "IMPORTANT: Review the plan output above before approving."
 
       - name: Terraform Apply
-        working-directory: terraform/environments/prod
+        working-directory: infra/terraform/environments/prod
         run: terraform apply -input=false -no-color -auto-approve tfplan
 
       - name: Notify on success
