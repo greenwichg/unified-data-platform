@@ -30,19 +30,19 @@ variable "workgroup_names" {
 variable "adhoc_bytes_scanned_cutoff" {
   description = "Bytes scanned cutoff per query for the adhoc workgroup"
   type        = number
-  default     = 10737418240  # 10 GB
+  default     = 10737418240 # 10 GB
 }
 
 variable "etl_bytes_scanned_cutoff" {
   description = "Bytes scanned cutoff per query for the etl workgroup"
   type        = number
-  default     = 107374182400  # 100 GB
+  default     = 107374182400 # 100 GB
 }
 
 variable "reporting_bytes_scanned_cutoff" {
   description = "Bytes scanned cutoff per query for the reporting workgroup"
   type        = number
-  default     = 53687091200  # 50 GB
+  default     = 53687091200 # 50 GB
 }
 
 # ---------- Results and Encryption ----------

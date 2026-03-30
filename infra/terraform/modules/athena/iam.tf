@@ -30,9 +30,9 @@ resource "aws_iam_role_policy" "athena_s3" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "S3DataLakeRead"
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+        Sid      = "S3DataLakeRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
         Resource = ["*"]
       },
       {

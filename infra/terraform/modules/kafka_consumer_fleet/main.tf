@@ -185,14 +185,14 @@ resource "aws_launch_template" "consumer_fleet" {
   vpc_security_group_ids = [aws_security_group.consumer_fleet.id]
 
   user_data = base64encode(templatefile("${path.module}/userdata.sh.tpl", {
-    project_name                   = var.project_name
-    environment                    = var.environment
-    kafka_primary_bootstrap        = var.kafka_primary_bootstrap_servers
-    kafka_secondary_bootstrap      = var.kafka_secondary_bootstrap_servers
-    source_topics                  = join(",", var.source_topics)
-    destination_topic              = var.destination_topic
-    consumer_group_id              = var.consumer_group_id
-    cloudwatch_namespace           = "${var.project_name}/${var.environment}/kafka-consumer-fleet"
+    project_name              = var.project_name
+    environment               = var.environment
+    kafka_primary_bootstrap   = var.kafka_primary_bootstrap_servers
+    kafka_secondary_bootstrap = var.kafka_secondary_bootstrap_servers
+    source_topics             = join(",", var.source_topics)
+    destination_topic         = var.destination_topic
+    consumer_group_id         = var.consumer_group_id
+    cloudwatch_namespace      = "${var.project_name}/${var.environment}/kafka-consumer-fleet"
   }))
 
   block_device_mappings {

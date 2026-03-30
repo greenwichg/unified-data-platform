@@ -47,7 +47,7 @@ resource "aws_security_group" "emr_core" {
 resource "aws_emr_cluster" "spark" {
   name          = "${var.project_name}-${var.environment}-spark-emr"
   release_label = "emr-7.0.0"
-  applications  = ["Spark", "Hadoop"]  # Hive Metastore replaced by AWS Glue Data Catalog
+  applications  = ["Spark", "Hadoop"] # Hive Metastore replaced by AWS Glue Data Catalog
   service_role  = aws_iam_role.emr_service.arn
 
   ec2_attributes {
@@ -88,9 +88,9 @@ resource "aws_emr_cluster" "spark" {
         Name = "ScaleOutOnMemory"
         Action = {
           SimpleScalingPolicyConfiguration = {
-            AdjustmentType = "CHANGE_IN_CAPACITY"
+            AdjustmentType    = "CHANGE_IN_CAPACITY"
             ScalingAdjustment = 2
-            CoolDown = 300
+            CoolDown          = 300
           }
         }
         Trigger = {
@@ -112,12 +112,12 @@ resource "aws_emr_cluster" "spark" {
     {
       Classification = "spark-defaults"
       Properties = {
-        "spark.dynamicAllocation.enabled"          = "true"
-        "spark.shuffle.service.enabled"            = "true"
-        "spark.sql.orc.enabled"                    = "true"
-        "spark.sql.hive.convertMetastoreOrc"       = "true"
-        "spark.serializer"                         = "org.apache.spark.serializer.KryoSerializer"
-        "spark.sql.adaptive.enabled"               = "true"
+        "spark.dynamicAllocation.enabled"               = "true"
+        "spark.shuffle.service.enabled"                 = "true"
+        "spark.sql.orc.enabled"                         = "true"
+        "spark.sql.hive.convertMetastoreOrc"            = "true"
+        "spark.serializer"                              = "org.apache.spark.serializer.KryoSerializer"
+        "spark.sql.adaptive.enabled"                    = "true"
         "spark.sql.adaptive.coalescePartitions.enabled" = "true"
       }
     },

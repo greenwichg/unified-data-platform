@@ -44,11 +44,11 @@ resource "aws_security_group" "aurora" {
 
 # ---------- Aurora Cluster ----------
 resource "aws_rds_cluster" "main" {
-  cluster_identifier     = "${var.project_name}-${var.environment}-aurora"
-  engine                 = "aurora-mysql"
-  engine_version         = "8.0.mysql_aurora.3.05.2"
-  database_name          = "zomato"
-  master_username        = "admin"
+  cluster_identifier          = "${var.project_name}-${var.environment}-aurora"
+  engine                      = "aurora-mysql"
+  engine_version              = "8.0.mysql_aurora.3.05.2"
+  database_name               = "zomato"
+  master_username             = "admin"
   manage_master_user_password = true
 
   db_subnet_group_name   = aws_db_subnet_group.aurora.name
