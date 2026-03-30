@@ -11,6 +11,8 @@ This guide walks through setting up the full Zomato Data Platform on your local 
 | Confluent Schema Registry | AWS Glue Schema Registry | `schema-registry` |
 | Debezium Kafka Connect | Debezium on ECS Fargate | `kafka-connect`, `connect-init` |
 | Apache Flink (Docker) | Amazon Managed Flink | `flink-jobmanager`, `flink-taskmanager` |
+| DynamoDB Local (Docker) | Amazon DynamoDB | `dynamodb-local`, `dynamodb-init` |
+| Apache Spark (Docker) | Amazon EMR | `spark-master`, `spark-worker` |
 | Trino (Docker) | Amazon Athena (Trino-based, serverless) | `trino` |
 | Apache Druid (Docker) | Apache Druid on EC2 R8g | `druid-coordinator`, `druid-historical`, `druid-middlemanager`, `druid-broker`, `druid-router` |
 | MinIO (Docker) | Amazon S3 | `minio`, `minio-init` |
