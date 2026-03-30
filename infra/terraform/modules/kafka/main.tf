@@ -92,8 +92,6 @@ resource "aws_msk_configuration" "this" {
     compression.type=producer
     log.cleanup.policy=delete,compact
   PROPERTIES
-
-  tags = var.tags
 }
 
 # ---------- MSK Cluster ----------

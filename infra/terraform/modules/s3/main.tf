@@ -36,6 +36,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake_raw" {
     id     = "transition-to-ia"
     status = "Enabled"
 
+    filter {}
+
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
@@ -81,6 +83,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake_processed" {
     id     = "intelligent-tiering"
     status = "Enabled"
 
+    filter {}
+
     transition {
       days          = 30
       storage_class = "INTELLIGENT_TIERING"
@@ -90,6 +94,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake_processed" {
   rule {
     id     = "archive-old-partitions"
     status = "Enabled"
+
+    filter {}
 
     transition {
       days          = 180
@@ -134,6 +140,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "airflow_logs" {
     id     = "expire-old-logs"
     status = "Enabled"
 
+    filter {}
+
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
@@ -161,6 +169,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "checkpoints" {
   rule {
     id     = "cleanup-old-checkpoints"
     status = "Enabled"
+
+    filter {}
 
     expiration {
       days = 7

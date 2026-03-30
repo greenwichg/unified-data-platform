@@ -139,7 +139,7 @@ resource "aws_cloudwatch_metric_alarm" "druid_query_latency" {
   metric_name         = "DruidQueryLatencyMs"
   namespace           = var.project_name
   period              = 300
-  statistic           = "p99"
+  extended_statistic  = "p99"
   threshold           = 5000
   alarm_description   = "Druid p99 query latency exceeded 5 seconds"
   alarm_actions       = [aws_sns_topic.alerts.arn]
