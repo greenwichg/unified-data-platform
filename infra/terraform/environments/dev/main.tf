@@ -89,6 +89,7 @@ module "kafka_secondary" {
   number_of_brokers   = var.kafka_broker_count
   ebs_volume_size     = var.kafka_ebs_volume_size
   enhanced_monitoring = "DEFAULT"
+  log_bucket          = module.s3.raw_bucket_name
   tags = merge(local.tags, {
     Cluster = "secondary"
     Purpose = "druid-ingestion"
