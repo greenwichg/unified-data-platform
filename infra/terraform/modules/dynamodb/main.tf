@@ -142,27 +142,121 @@ resource "aws_dynamodb_table" "user_locations" {
   })
 }
 
-# ---------- Outputs ----------
-output "orders_table_name" {
-  value = aws_dynamodb_table.orders.name
+# ---------- Lambda: DynamoDB Streams → S3 JSON (Pipeline 3) ----------
+# Deploys dynamodb_stream_processor.py as a Lambda function triggered by
+# all three DynamoDB Streams. Writes raw JSON to S3 for downstream Spark EMR.
+
+resource "aws_lambda_function" "stream_processor" {
+  function_name = "${var.project_name}-${var.environment}-dynamodb-stream-processor"
+  description   = "Pipeline 3: Processes DynamoDB Streams events and writes JSON to S3"
+  role          = aws_iam_role.dynamodb_streams_consumer.arn
+  handler       = "dynamodb_stream_processor.process_stream_event"
+  runtime       = "python3.11"
+  timeout       = 300
+  memory_size   = 512
+
+  s3_bucket = var.lambda_s3_bucket
+  s3_key    = var.lambda_s3_key
+
+  environment {
+    variables = {
+      S3_BUCKET = var.s3_raw_bucket
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name     = "${var.project_name}-${var.environment}-dynamodb-stream-processor"
+    Pipeline = "pipeline3-dynamodb-streams"
+  })
 }
 
-output "orders_stream_arn" {
-  value = aws_dynamodb_table.orders.stream_arn
+resource "aws_cloudwatch_log_group" "stream_processor" {
+  name              = "/aws/lambda/${aws_lambda_function.stream_processor.function_name}"
+  retention_in_days = 30
+  tags              = var.tags
 }
 
-output "payments_table_name" {
-  value = aws_dynamodb_table.payments.name
+# Add S3 write permission to the Lambda execution role
+resource "aws_iam_role_policy" "lambda_s3_write" {
+  name = "dynamodb-stream-processor-s3-write"
+  role = aws_iam_role.dynamodb_streams_consumer.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:GetObject"]
+      Resource = "arn:aws:s3:::${var.s3_raw_bucket}/pipeline3-dynamodb/*"
+    }]
+  })
 }
 
-output "payments_stream_arn" {
-  value = aws_dynamodb_table.payments.stream_arn
+# Event source mapping: orders stream → Lambda
+resource "aws_lambda_event_source_mapping" "orders_stream" {
+  event_source_arn              = aws_dynamodb_table.orders.stream_arn
+  function_name                 = aws_lambda_function.stream_processor.arn
+  starting_position             = "TRIM_HORIZON"
+  batch_size                    = 1000
+  maximum_batching_window_in_seconds = 10
+  bisect_batch_on_function_error = true
+
+  destination_config {
+    on_failure {
+      destination_arn = aws_sqs_queue.stream_dlq.arn
+    }
+  }
 }
 
-output "user_locations_table_name" {
-  value = aws_dynamodb_table.user_locations.name
+# Event source mapping: payments stream → Lambda
+resource "aws_lambda_event_source_mapping" "payments_stream" {
+  event_source_arn              = aws_dynamodb_table.payments.stream_arn
+  function_name                 = aws_lambda_function.stream_processor.arn
+  starting_position             = "TRIM_HORIZON"
+  batch_size                    = 1000
+  maximum_batching_window_in_seconds = 10
+  bisect_batch_on_function_error = true
+
+  destination_config {
+    on_failure {
+      destination_arn = aws_sqs_queue.stream_dlq.arn
+    }
+  }
 }
 
-output "user_locations_stream_arn" {
-  value = aws_dynamodb_table.user_locations.stream_arn
+# Event source mapping: user_locations stream → Lambda
+resource "aws_lambda_event_source_mapping" "user_locations_stream" {
+  event_source_arn              = aws_dynamodb_table.user_locations.stream_arn
+  function_name                 = aws_lambda_function.stream_processor.arn
+  starting_position             = "TRIM_HORIZON"
+  batch_size                    = 500
+  maximum_batching_window_in_seconds = 5
+  bisect_batch_on_function_error = true
+
+  destination_config {
+    on_failure {
+      destination_arn = aws_sqs_queue.stream_dlq.arn
+    }
+  }
 }
+
+# Dead-letter queue for failed stream batches
+resource "aws_sqs_queue" "stream_dlq" {
+  name                      = "${var.project_name}-${var.environment}-dynamodb-stream-dlq"
+  message_retention_seconds = 1209600 # 14 days
+  tags                      = var.tags
+}
+
+resource "aws_iam_role_policy" "lambda_sqs_dlq" {
+  name = "dynamodb-stream-processor-sqs-dlq"
+  role = aws_iam_role.dynamodb_streams_consumer.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:SendMessage"]
+      Resource = aws_sqs_queue.stream_dlq.arn
+    }]
+  })
+}
+

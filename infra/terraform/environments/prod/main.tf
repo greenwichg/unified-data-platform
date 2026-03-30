@@ -63,9 +63,12 @@ module "aurora" {
 
 # ===================== DynamoDB =====================
 module "dynamodb" {
-  source      = "../../modules/dynamodb"
-  environment = var.environment
-  tags        = local.tags
+  source           = "../../modules/dynamodb"
+  environment      = var.environment
+  s3_raw_bucket    = module.s3.raw_bucket_name
+  lambda_s3_bucket = module.s3.checkpoints_bucket_name
+  lambda_s3_key    = "lambda/dynamodb_stream_processor.zip"
+  tags             = local.tags
 }
 
 # ===================== Amazon MSK (replacing self-hosted Kafka on EC2) - Production Scale =====================
@@ -167,11 +170,14 @@ module "druid" {
 
 # ===================== ECS (Debezium / Services) =====================
 module "ecs" {
-  source      = "../../modules/ecs"
-  environment = var.environment
-  vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.private_subnet_ids
-  tags        = local.tags
+  source                   = "../../modules/ecs"
+  environment              = var.environment
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnet_ids
+  kafka_bootstrap_servers  = module.kafka.bootstrap_brokers_iam
+  glue_registry_name       = "zomato-schema-registry"
+  aws_region               = var.aws_region
+  tags                     = local.tags
 }
 
 # ===================== Airflow (MWAA) =====================

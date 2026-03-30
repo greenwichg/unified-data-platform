@@ -127,12 +127,34 @@ resource "aws_ecs_task_definition" "debezium" {
     }]
 
     environment = [
-      { name = "GROUP_ID", value = "zomato-cdc-${var.environment}" },
-      { name = "CONFIG_STORAGE_TOPIC", value = "debezium-configs" },
-      { name = "OFFSET_STORAGE_TOPIC", value = "debezium-offsets" },
-      { name = "STATUS_STORAGE_TOPIC", value = "debezium-status" },
-      { name = "CONNECT_KEY_CONVERTER", value = "io.confluent.connect.avro.AvroConverter" },
-      { name = "CONNECT_VALUE_CONVERTER", value = "io.confluent.connect.avro.AvroConverter" }
+      { name = "GROUP_ID",                  value = "zomato-cdc-${var.environment}" },
+      { name = "CONFIG_STORAGE_TOPIC",      value = "debezium-configs" },
+      { name = "OFFSET_STORAGE_TOPIC",      value = "debezium-offsets" },
+      { name = "STATUS_STORAGE_TOPIC",      value = "debezium-status" },
+      { name = "BOOTSTRAP_SERVERS",         value = var.kafka_bootstrap_servers },
+      # MSK IAM authentication
+      { name = "CONNECT_SECURITY_PROTOCOL",                        value = "SASL_SSL" },
+      { name = "CONNECT_SASL_MECHANISM",                           value = "AWS_MSK_IAM" },
+      { name = "CONNECT_SASL_JAAS_CONFIG",                         value = "software.amazon.msk.auth.iam.IAMLoginModule required;" },
+      { name = "CONNECT_SASL_CLIENT_CALLBACK_HANDLER_CLASS",       value = "software.amazon.msk.auth.iam.IAMClientCallbackHandler" },
+      # Producer/consumer IAM auth (for internal Connect topics)
+      { name = "CONNECT_PRODUCER_SECURITY_PROTOCOL",               value = "SASL_SSL" },
+      { name = "CONNECT_PRODUCER_SASL_MECHANISM",                  value = "AWS_MSK_IAM" },
+      { name = "CONNECT_PRODUCER_SASL_JAAS_CONFIG",                value = "software.amazon.msk.auth.iam.IAMLoginModule required;" },
+      { name = "CONNECT_PRODUCER_SASL_CLIENT_CALLBACK_HANDLER_CLASS", value = "software.amazon.msk.auth.iam.IAMClientCallbackHandler" },
+      { name = "CONNECT_CONSUMER_SECURITY_PROTOCOL",               value = "SASL_SSL" },
+      { name = "CONNECT_CONSUMER_SASL_MECHANISM",                  value = "AWS_MSK_IAM" },
+      { name = "CONNECT_CONSUMER_SASL_JAAS_CONFIG",                value = "software.amazon.msk.auth.iam.IAMLoginModule required;" },
+      { name = "CONNECT_CONSUMER_SASL_CLIENT_CALLBACK_HANDLER_CLASS", value = "software.amazon.msk.auth.iam.IAMClientCallbackHandler" },
+      # AWS Glue Schema Registry converter (replaces Confluent Schema Registry)
+      { name = "CONNECT_KEY_CONVERTER",   value = "com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter" },
+      { name = "CONNECT_VALUE_CONVERTER", value = "com.amazonaws.services.schemaregistry.kafkaconnect.AWSKafkaAvroConverter" },
+      { name = "CONNECT_KEY_CONVERTER_REGION",          value = var.aws_region },
+      { name = "CONNECT_VALUE_CONVERTER_REGION",        value = var.aws_region },
+      { name = "CONNECT_KEY_CONVERTER_REGISTRY_NAME",   value = var.glue_registry_name },
+      { name = "CONNECT_VALUE_CONVERTER_REGISTRY_NAME", value = var.glue_registry_name },
+      { name = "CONNECT_KEY_CONVERTER_SCHEMA_AUTO_REGISTRATION_ENABLED",   value = "true" },
+      { name = "CONNECT_VALUE_CONVERTER_SCHEMA_AUTO_REGISTRATION_ENABLED", value = "true" }
     ]
 
     logConfiguration = {
