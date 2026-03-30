@@ -142,27 +142,4 @@ resource "aws_dynamodb_table" "user_locations" {
   })
 }
 
-# ---------- Outputs ----------
-output "orders_table_name" {
-  value = aws_dynamodb_table.orders.name
-}
 
-output "orders_stream_arn" {
-  value = aws_dynamodb_table.orders.stream_arn
-}
-
-output "payments_table_name" {
-  value = aws_dynamodb_table.payments.name
-}
-
-output "payments_stream_arn" {
-  value = aws_dynamodb_table.payments.stream_arn
-}
-
-output "user_locations_table_name" {
-  value = aws_dynamodb_table.user_locations.name
-}
-
-output "user_locations_stream_arn" {
-  value = aws_dynamodb_table.user_locations.stream_arn
-}

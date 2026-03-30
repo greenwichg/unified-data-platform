@@ -165,11 +165,14 @@ module "druid" {
 
 # ===================== ECS (Debezium / Services) =====================
 module "ecs" {
-  source      = "../../modules/ecs"
-  environment = var.environment
-  vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.private_subnet_ids
-  tags        = local.tags
+  source                  = "../../modules/ecs"
+  environment             = var.environment
+  vpc_id                  = module.vpc.vpc_id
+  subnet_ids              = module.vpc.private_subnet_ids
+  kafka_bootstrap_servers = module.kafka.bootstrap_brokers_iam
+  glue_registry_name      = "zomato-schema-registry"
+  aws_region              = var.aws_region
+  tags                    = local.tags
 }
 
 # ===================== Airflow (MWAA) =====================
