@@ -74,20 +74,23 @@ resource "aws_rds_cluster_parameter_group" "main" {
   name   = "${var.project_name}-${var.environment}-aurora-params"
   family = "aurora-mysql8.0"
 
-  # Enable binlog for Debezium CDC
+  # Enable binlog for Debezium CDC (static params require pending-reboot)
   parameter {
-    name  = "binlog_format"
-    value = "ROW"
+    name         = "binlog_format"
+    value        = "ROW"
+    apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "binlog_row_image"
-    value = "FULL"
+    name         = "binlog_row_image"
+    value        = "FULL"
+    apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "log_bin_trust_function_creators"
-    value = "1"
+    name         = "log_bin_trust_function_creators"
+    value        = "1"
+    apply_method = "pending-reboot"
   }
 
   tags = var.tags
