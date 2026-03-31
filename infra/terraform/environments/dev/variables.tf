@@ -53,7 +53,7 @@ variable "kafka_instance_type" {
 variable "kafka_broker_count" {
   description = "Number of Kafka brokers"
   type        = number
-  default     = 2 # dev: minimum HA (one per AZ)
+  default     = 2 # dev: 2 brokers across 2 AZs (ap-south-1a/b)
 }
 
 variable "kafka_ebs_volume_size" {
