@@ -61,6 +61,7 @@ resource "aws_rds_cluster" "main" {
   preferred_backup_window = "03:00-04:00"
   storage_encrypted       = true
   deletion_protection     = false # dev: allow destroy for clean redeployment
+  skip_final_snapshot     = true  # dev: no final snapshot needed on destroy
 
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.main.name
 
