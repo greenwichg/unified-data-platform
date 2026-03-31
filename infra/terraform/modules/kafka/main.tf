@@ -103,10 +103,7 @@ resource "aws_msk_cluster" "this" {
     storage_info {
       ebs_storage_info {
         volume_size = var.ebs_volume_size
-        provisioned_throughput {
-          enabled           = true
-          volume_throughput = 250
-        }
+        # provisioned_throughput only supported on kafka.m5/r5/r7g — not kafka.t3
       }
     }
   }

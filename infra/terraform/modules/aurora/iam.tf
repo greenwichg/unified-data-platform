@@ -26,6 +26,8 @@ resource "aws_iam_role_policy_attachment" "aurora_monitoring" {
 }
 
 # ---------- Aurora S3 Export Role ----------
+# Note: s3Export feature association is only valid for Aurora PostgreSQL, not MySQL.
+# Keeping the IAM role for potential future use but not associating it.
 resource "aws_iam_role" "aurora_s3_export" {
   name = "${var.project_name}-${var.environment}-aurora-s3-export-role"
 
@@ -62,8 +64,4 @@ resource "aws_iam_role_policy" "aurora_s3_export" {
   })
 }
 
-resource "aws_rds_cluster_role_association" "s3_export" {
-  db_cluster_identifier = aws_rds_cluster.main.id
-  feature_name          = "s3Export"
-  role_arn              = aws_iam_role.aurora_s3_export.arn
-}
+# s3Export feature is not supported for Aurora MySQL — removed association.
