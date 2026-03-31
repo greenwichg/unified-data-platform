@@ -89,7 +89,32 @@ resource "aws_iam_role" "dynamodb_backup" {
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "dynamodb_backup" {
-  role       = aws_iam_role.dynamodb_backup.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSBackupServiceRolePolicyForDynamoDB"
+resource "aws_iam_role_policy" "dynamodb_backup" {
+  name = "dynamodb-backup-policy"
+  role = aws_iam_role.dynamodb_backup.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:CreateBackup",
+          "dynamodb:DescribeBackup",
+          "dynamodb:ListBackups",
+          "dynamodb:RestoreTableFromBackup",
+          "dynamodb:DeleteBackup"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "backup:DescribeBackupVault",
+          "backup:CopyIntoBackupVault"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }

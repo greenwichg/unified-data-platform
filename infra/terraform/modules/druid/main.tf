@@ -127,13 +127,14 @@ locals {
   }
 }
 
+# Use x86_64 AMI — compatible with both t3/m5 (dev) and r8g (prod via arm64 override)
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-arm64"]
+    values = ["al2023-ami-*-x86_64"]
   }
 
   filter {

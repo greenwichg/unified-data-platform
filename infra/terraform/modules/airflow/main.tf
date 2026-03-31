@@ -84,7 +84,6 @@ resource "aws_mwaa_environment" "main" {
     "core.default_timezone"         = "Asia/Kolkata"
     "core.parallelism"              = "64"
     "core.max_active_runs_per_dag"  = "16"
-    "celery.worker_concurrency"     = "16"
     "webserver.default_ui_timezone" = "Asia/Kolkata"
   }
 
