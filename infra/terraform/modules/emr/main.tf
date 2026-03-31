@@ -48,7 +48,8 @@ resource "aws_emr_cluster" "spark" {
   name          = "${var.project_name}-${var.environment}-spark-emr"
   release_label = "emr-7.0.0"
   applications  = ["Spark", "Hadoop"] # Hive Metastore replaced by AWS Glue Data Catalog
-  service_role  = aws_iam_role.emr_service.arn
+  service_role     = aws_iam_role.emr_service.arn
+  autoscaling_role = aws_iam_role.emr_autoscaling.arn
 
   ec2_attributes {
     instance_profile                  = aws_iam_instance_profile.emr_ec2.arn

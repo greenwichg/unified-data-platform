@@ -46,7 +46,7 @@ resource "aws_security_group" "aurora" {
 resource "aws_rds_cluster" "main" {
   cluster_identifier          = "${var.project_name}-${var.environment}-aurora"
   engine                      = "aurora-mysql"
-  engine_version              = "8.0.mysql_aurora.3.05.2"
+  engine_version              = "8.0.mysql_aurora.3.07.1"
   database_name               = "zomato"
   master_username             = "admin"
   manage_master_user_password = true
