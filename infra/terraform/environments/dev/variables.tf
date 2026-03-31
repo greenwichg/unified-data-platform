@@ -53,7 +53,7 @@ variable "kafka_instance_type" {
 variable "kafka_broker_count" {
   description = "Number of Kafka brokers"
   type        = number
-  default     = 2 # dev: 2 brokers across 2 AZs (ap-south-1a/b)
+  default     = 3 # dev: 3 brokers, one per AZ (ap-south-1a/b/c) — must be multiple of 3
 }
 
 variable "kafka_ebs_volume_size" {
