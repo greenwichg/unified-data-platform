@@ -35,10 +35,11 @@ locals {
 
 # ===================== VPC =====================
 module "vpc" {
-  source      = "../../modules/vpc"
-  environment = var.environment
-  vpc_cidr    = "10.0.0.0/16"
-  tags        = local.tags
+  source             = "../../modules/vpc"
+  environment        = var.environment
+  vpc_cidr           = "10.0.0.0/16"
+  availability_zones = var.availability_zones # dev: 2 AZs so MSK broker count is a valid multiple
+  tags               = local.tags
 }
 
 # ===================== S3 Data Lake =====================

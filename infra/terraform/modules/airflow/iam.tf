@@ -49,6 +49,37 @@ resource "aws_iam_role_policy" "airflow_execution" {
       {
         Effect = "Allow"
         Action = [
+          "airflow:PublishMetrics"
+        ]
+        Resource = "arn:aws:airflow:*:*:environment/${var.project_name}-${var.environment}-airflow"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:DescribeLogStreams",
+          "logs:GetLogEvents",
+          "logs:GetLogRecord",
+          "logs:GetQueryResults"
+        ]
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetEncryptionConfiguration"
+        ]
+        Resource = "arn:aws:s3:::${var.s3_dags_bucket}"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "emr:*",
           "ecs:*",
           "ec2:Describe*"

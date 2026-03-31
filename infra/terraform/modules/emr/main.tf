@@ -45,9 +45,9 @@ resource "aws_security_group" "emr_core" {
 
 # ---------- EMR Cluster ----------
 resource "aws_emr_cluster" "spark" {
-  name          = "${var.project_name}-${var.environment}-spark-emr"
-  release_label = "emr-7.0.0"
-  applications  = ["Spark", "Hadoop"] # Hive Metastore replaced by AWS Glue Data Catalog
+  name             = "${var.project_name}-${var.environment}-spark-emr"
+  release_label    = "emr-7.0.0"
+  applications     = ["Spark", "Hadoop"] # Hive Metastore replaced by AWS Glue Data Catalog
   service_role     = aws_iam_role.emr_service.arn
   autoscaling_role = aws_iam_role.emr_autoscaling.arn
 
@@ -72,7 +72,7 @@ resource "aws_emr_cluster" "spark" {
   core_instance_group {
     instance_type  = var.core_instance_type
     instance_count = var.core_instance_count
-    bid_price      = var.use_spot_instances ? "${var.spot_bid_price_percent}%" : null
+    bid_price      = var.use_spot_instances ? var.spot_bid_price : null
 
     ebs_config {
       size                 = 512

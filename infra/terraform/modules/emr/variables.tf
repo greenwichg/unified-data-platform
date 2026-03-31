@@ -57,10 +57,10 @@ variable "use_spot_instances" {
   default     = true
 }
 
-variable "spot_bid_price_percent" {
-  description = "Maximum Spot price as percentage of On-Demand (e.g. 60 = 60%)"
-  type        = number
-  default     = 60
+variable "spot_bid_price" {
+  description = "Maximum Spot price per instance-hour in USD (e.g. '0.15')"
+  type        = string
+  default     = "0.15"
 }
 
 variable "tags" {
